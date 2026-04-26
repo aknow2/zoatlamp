@@ -64,13 +64,13 @@ difference() {
 		// S3M-519 has 173 teeth, but that would be a very large pulley. Instead, target a more reasonable 120mm pitch radius and see how many teeth that gives us.
 		translate([0,0,19])
 			difference() {
-				cylinder(d=92.2, h=10);
-				cylinder(d=90, h=12);
+				cylinder(d=103, h=10);
+				cylinder(h=18,r=49.6, $fn=6);
 			}
 		cylinder(r=74, h=2);
 		pulley_reimpl_with_pulleye(target_pitch_radius_mm = 72.5);
 	}
 	// Cut out the center hole.
-	cylinder(d=78.5, h=12, center=true);
+	cylinder(d=78.2, h=13, center=true);
 	cylinder(d=55, h=200, center=true);
 }
