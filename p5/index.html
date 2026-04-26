@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>p5.js Sketch Viewer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111;
+      color: #eee;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    header {
+      padding: 1.2rem 2rem;
+      background: #1a1a2e;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 600; letter-spacing: 0.05em; }
+    header span { color: #7ecfff; font-size: 0.85rem; }
+
+    .sketches {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+      padding: 2rem;
+    }
+    .card {
+      background: #1e1e2e;
+      border: 1px solid #333;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: #7ecfff;
+      box-shadow: 0 4px 20px #7ecfff33;
+    }
+    .card-preview {
+      width: 100%;
+      aspect-ratio: 1;
+      background: #0a0a14;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+    }
+    .card-body { padding: 0.75rem 1rem; }
+    .card-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.2rem; }
+    .card-sub { font-size: 0.75rem; color: #888; }
+
+    #custom-area {
+      padding: 1.5rem 2rem;
+      border-top: 1px solid #333;
+    }
+    #custom-area h2 { font-size: 1rem; margin-bottom: 0.75rem; color: #aaa; }
+    .row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    #file-url { flex: 1; min-width: 200px; background: #1e1e2e; border: 1px solid #444; color: #eee; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.9rem; }
+    button {
+      background: #7ecfff22;
+      border: 1px solid #7ecfff88;
+      color: #7ecfff;
+      padding: 0.5rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.15s;
+    }
+    button:hover { background: #7ecfff44; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🎨 p5.js Sketch Viewer</h1>
+    <span>クリックでスケッチを実行</span>
+  </header>
+
+  <div class="sketches" id="sketch-grid"></div>
+
+  <div id="custom-area">
+    <h2>カスタムファイルを開く（相対パスまたはファイル名）</h2>
+    <div class="row">
+      <input id="file-url" type="text" placeholder="../psywaves.p5.js" />
+      <button onclick="openCustom()">▶ 実行</button>
+    </div>
+  </div>
+
+  <script>
+    // 親ディレクトリの .p5.js ファイルを登録
+    const sketches = [
+      { file: '../sample.p5.js',   label: 'Sample',    icon: '🔵' },
+      { file: '../circles.p5.js',  label: 'Circles',   icon: '⭕' },
+      { file: '../eye.p5.js',      label: 'Eye',       icon: '👁' },
+      { file: '../gear.p5.js',     label: 'Gear',      icon: '⚙️' },
+      { file: '../psywaves.p5.js', label: 'Psywaves',  icon: '🌀' },
+    ];
+
+    const grid = document.getElementById('sketch-grid');
+
+    sketches.forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="card-preview">${s.icon}</div>
+        <div class="card-body">
+          <div class="card-title">${s.label}</div>
+          <div class="card-sub">${s.file}</div>
+        </div>`;
+      card.addEventListener('click', () => openSketch(s.file));
+      grid.appendChild(card);
+    });
+
+    function openSketch(file) {
+      const url = 'runner.html?file=' + encodeURIComponent(file);
+      window.open(url, '_blank');
+    }
+
+    function openCustom() {
+      const val = document.getElementById('file-url').value.trim();
+      if (val) openSketch(val);
+    }
+  </script>
+</body>
+</html>

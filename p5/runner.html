@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>p5 Runner</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: #111; overflow: hidden; }
+
+    #toolbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 40px;
+      background: #1a1a2ecc;
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      padding: 0 1rem;
+      gap: 0.75rem;
+      z-index: 100;
+      font-family: system-ui, sans-serif;
+      font-size: 0.82rem;
+      color: #aaa;
+    }
+    #toolbar b { color: #7ecfff; }
+    #toolbar .sep { flex: 1; }
+
+    .btn {
+      background: #ffffff12;
+      border: 1px solid #444;
+      color: #ccc;
+      padding: 3px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: background 0.12s;
+    }
+    .btn:hover { background: #ffffff28; color: #fff; }
+    .btn.active { background: #7ecfff33; border-color: #7ecfff88; color: #7ecfff; }
+
+    #canvas-wrap {
+      position: fixed;
+      top: 40px; left: 0; right: 0; bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #canvas-wrap canvas { display: block; }
+
+    #error-box {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: #500;
+      color: #faa;
+      font-family: monospace;
+      font-size: 0.82rem;
+      padding: 0.5rem 1rem;
+      max-height: 30%;
+      overflow-y: auto;
+      z-index: 200;
+    }
+
+    /* Size chooser */
+    #size-menu {
+      display: none;
+      position: absolute;
+      top: 42px; right: 1rem;
+      background: #1e1e2e;
+      border: 1px solid #444;
+      border-radius: 7px;
+      padding: 0.4rem 0;
+      z-index: 300;
+      min-width: 160px;
+    }
+    #size-menu.open { display: block; }
+    #size-menu li {
+      list-style: none;
+      padding: 0.35rem 1rem;
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #ccc;
+      transition: background 0.1s;
+    }
+    #size-menu li:hover { background: #ffffff18; color: #fff; }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <b id="sketch-name">—</b>
+    <span class="sep"></span>
+    <button class="btn" id="btn-reload" title="再読み込み (R)">↺ リロード</button>
+    <button class="btn active" id="btn-loop" title="アニメーションON/OFF (L)">⏸ ループ</button>
+    <button class="btn" id="btn-save" title="スクリーンショット保存 (S)">💾 保存</button>
+    <div style="position:relative;">
+      <button class="btn" id="btn-size" title="キャンバスサイズ">⊞ サイズ</button>
+      <ul id="size-menu">
+        <li data-w="800"  data-h="800">800 × 800</li>
+        <li data-w="1000" data-h="1000">1000 × 1000</li>
+        <li data-w="1200" data-h="800">1200 × 800</li>
+        <li data-w="600"  data-h="600">600 × 600</li>
+        <li data-w="0"    data-h="0">ウィンドウに合わせる</li>
+      </ul>
+    </div>
+    <a class="btn" href="index.html">← 一覧</a>
+  </div>
+
+  <div id="canvas-wrap"></div>
+  <pre id="error-box"></pre>
+
+  <!-- p5.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
+  <script>
+    // ---- Helpers ----
+    const params   = new URLSearchParams(location.search);
+    const filePath = params.get('file') || '../sample.p5.js';
+    const wrap     = document.getElementById('canvas-wrap');
+    const errBox   = document.getElementById('error-box');
+    let p5instance = null;
+    let isLooping  = true;
+    let canvasW    = 800;
+    let canvasH    = 800;
+
+    document.getElementById('sketch-name').textContent =
+      filePath.replace(/^.*\//, '');
+
+    function showError(e) {
+      errBox.style.display = 'block';
+      errBox.textContent   = String(e);
+      console.error(e);
+    }
+    function clearError() {
+      errBox.style.display = 'none';
+      errBox.textContent   = '';
+    }
+
+    // ---- Load and run sketch ----
+    async function loadSketch() {
+      clearError();
+      if (p5instance) { p5instance.remove(); p5instance = null; }
+      wrap.innerHTML = '';
+
+      let code;
+      try {
+        const res = await fetch(filePath);
+        if (!res.ok) throw new Error(`HTTP ${res.status} — ${filePath}`);
+        code = await res.text();
+      } catch (e) { showError('ファイル取得失敗: ' + e); return; }
+
+      // Detect whether the code already contains setup() / draw()
+      const hasSetup = /^\s*function\s+setup\s*\(/m.test(code);
+
+      let sketchCode;
+      if (hasSetup) {
+        // Full sketch — run as-is, just inject into global p5
+        sketchCode = code;
+      } else {
+        // Snippet style (.p5.js) — wrap in setup()
+        // canvas variable is provided by p5, centered translate applied
+        sketchCode = `
+let canvas;
+function setup() {
+  canvas = createCanvas(${canvasW}, ${canvasH});
+  canvas.parent('canvas-wrap-inner');
+  colorMode(HSB, 360, 100, 100, 1);
+  noLoop();
+  translate(width / 2, height / 2);
+  try {
+${code}
+  } catch(e) {
+    window.__p5SketchError = e;
+  }
+}
+`;
+      }
+
+      // Append inject target
+      const inner = document.createElement('div');
+      inner.id = 'canvas-wrap-inner';
+      wrap.appendChild(inner);
+
+      try {
+        // eslint-disable-next-line no-new-func
+        const sketchFn = new Function('p', `with(p){ ${sketchCode} }`);
+        // Run as p5 instance mode, injecting all methods
+        p5instance = new p5(p => {
+          // Copy all p5 globals onto p so `with(p)` works
+          // Actually we use a different approach: eval in global scope via <script>
+        });
+        p5instance.remove();
+
+        // Cleaner: create isolated <script> that defines the sketch functions
+        // and then launch p5 global mode in an iframe-less context.
+        // Best approach for this use-case: dynamic script tag with global mode.
+        launchGlobal(sketchCode, !hasSetup);
+      } catch(e) { showError(e); }
+    }
+
+    function launchGlobal(userCode, isSnippet) {
+      // Re-attach a fresh p5 instance via a <script> we inject.
+      // We pass the code as a Blob URL to avoid eval CSP issues.
+      const wrapper = isSnippet ? userCode : `
+let canvas;
+function setup() {
+  canvas = createCanvas(${canvasW}, ${canvasH});
+  canvas.parent('canvas-wrap-inner');
+}
+${userCode}
+`;
+      const blob = new Blob([wrapper], { type: 'application/javascript' });
+      const blobURL = URL.createObjectURL(blob);
+
+      const s = document.createElement('script');
+      s.src = blobURL;
+      s.onload = () => {
+        URL.revokeObjectURL(blobURL);
+        // After p5 global functions are defined, start p5
+        p5instance = new p5();
+        // Check for errors set inside sketch
+        setTimeout(() => {
+          if (window.__p5SketchError) {
+            showError(window.__p5SketchError);
+            window.__p5SketchError = null;
+          }
+        }, 200);
+        isLooping = true;
+        updateLoopBtn();
+      };
+      s.onerror = e => showError('スクリプト読み込みエラー: ' + e);
+      document.head.appendChild(s);
+    }
+
+    // ---- Toolbar buttons ----
+    document.getElementById('btn-reload').addEventListener('click', loadSketch);
+
+    const loopBtn = document.getElementById('btn-loop');
+    function updateLoopBtn() {
+      loopBtn.textContent = isLooping ? '⏸ ループ' : '▶ ループ';
+      loopBtn.classList.toggle('active', isLooping);
+    }
+    loopBtn.addEventListener('click', () => {
+      if (!p5instance) return;
+      if (isLooping) { p5instance.noLoop(); isLooping = false; }
+      else           { p5instance.loop();   isLooping = true;  }
+      updateLoopBtn();
+    });
+
+    document.getElementById('btn-save').addEventListener('click', () => {
+      if (p5instance) p5instance.saveCanvas('sketch', 'png');
+    });
+
+    // Size menu
+    const sizeBtn  = document.getElementById('btn-size');
+    const sizeMenu = document.getElementById('size-menu');
+    sizeBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      sizeMenu.classList.toggle('open');
+    });
+    document.addEventListener('click', () => sizeMenu.classList.remove('open'));
+    sizeMenu.querySelectorAll('li').forEach(li => {
+      li.addEventListener('click', () => {
+        const w = parseInt(li.dataset.w);
+        const h = parseInt(li.dataset.h);
+        canvasW = w || window.innerWidth;
+        canvasH = h || (window.innerHeight - 40);
+        sizeMenu.classList.remove('open');
+        loadSketch();
+      });
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', e => {
+      if (e.key === 'r' || e.key === 'R') loadSketch();
+      if (e.key === 'l' || e.key === 'L') loopBtn.click();
+      if (e.key === 's' || e.key === 'S') document.getElementById('btn-save').click();
+    });
+
+    // ---- Start ----
+    loadSketch();
+  </script>
+</body>
+</html>
