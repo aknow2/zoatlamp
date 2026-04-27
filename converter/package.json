@@ -1,0 +1,13 @@
+{
+  "name": "polar-cylinder-converter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Convert a centered polar image into a mirrored cylindrical equirectangular image.",
+  "main": "index.js",
+  "scripts": {
+    "convert": "node index.js"
+  },
+  "dependencies": {
+    "sharp": "^0.34.2"
+  }
+}
