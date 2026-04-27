@@ -282,6 +282,42 @@
       valueEls.refreshRate.textContent = `${Math.round(params.refreshRate)} FPS`;
     }
 
+    const STORAGE_KEY = 'inkCloud_settings_v1';
+
+    function saveSettings() {
+      const data = {};
+      for (const id of controlIds) {
+        data[id] = controls[id].value;
+      }
+      data.autoRotate = autoRotateEl.checked;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (_) {
+        // localStorage が無効な環境では無視
+      }
+    }
+
+    function loadSettings() {
+      let data;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        data = JSON.parse(raw);
+      } catch (_) {
+        return;
+      }
+      for (const id of controlIds) {
+        if (data[id] != null) {
+          controls[id].value = data[id];
+        }
+      }
+      if (data.autoRotate != null) {
+        autoRotateEl.checked = data.autoRotate;
+      }
+    }
+
+    loadSettings();
+
     let seed = Math.floor(Math.random() * 1_000_000_000);
     let spinOffsetDeg = 0;
     let animationFrameId = null;
@@ -517,6 +553,14 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         primitive: { topology: 'triangle-list' },
       });
 
+      // PNG保存用に rgba8unorm 固定パイプライン（読み取り保証のため）
+      const savePipeline = device.createRenderPipeline({
+        layout: pipelineLayout,
+        vertex: { module: cloudShader, entryPoint: 'vs' },
+        fragment: { module: cloudShader, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
+        primitive: { topology: 'triangle-list' },
+      });
+
       function resize() {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
@@ -582,32 +626,79 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
       }
 
       async function saveSquarePng() {
-        render();
-        await device.queue.onSubmittedWorkDone();
+        resize();
+        updateUniforms();
 
         const params = readParams();
-        const { sx, sy, size } = getSquareCropRect(canvas.width, canvas.height, params.centerY);
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // オフスクリーンテクスチャ（rgba8unorm 固定でピクセル読み取りを保証）
+        const offTex = device.createTexture({
+          size: [w, h],
+          format: 'rgba8unorm',
+          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+        });
+
+        // copyTextureToBuffer は bytesPerRow が 256 の倍数である必要がある
+        const bytesPerRow = Math.ceil(w * 4 / 256) * 256;
+        const readBuf = device.createBuffer({
+          size: bytesPerRow * h,
+          usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        });
+
+        const encoder = device.createCommandEncoder();
+
+        const pass = encoder.beginRenderPass({
+          colorAttachments: [{
+            view: offTex.createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          }],
+        });
+        pass.setBindGroup(0, bindGroup);
+        pass.setPipeline(savePipeline);
+        pass.draw(3);
+        pass.end();
+
+        encoder.copyTextureToBuffer(
+          { texture: offTex },
+          { buffer: readBuf, bytesPerRow },
+          [w, h],
+        );
+        device.queue.submit([encoder.finish()]);
+
+        await readBuf.mapAsync(GPUMapMode.READ);
+        const raw = new Uint8Array(readBuf.getMappedRange());
+
+        const { sx, sy, size } = getSquareCropRect(w, h, params.centerY);
         const exportCanvas = document.createElement('canvas');
         exportCanvas.width = size;
         exportCanvas.height = size;
 
         const exportContext = exportCanvas.getContext('2d');
-
         if (!exportContext) {
           throw new Error('PNG保存用の2Dコンテキストを取得できませんでした。');
         }
 
-        exportContext.drawImage(
-          canvas,
-          sx,
-          sy,
-          size,
-          size,
-          0,
-          0,
-          size,
-          size,
-        );
+        const imgData = exportContext.createImageData(size, size);
+        for (let row = 0; row < size; row++) {
+          for (let col = 0; col < size; col++) {
+            const src = (sy + row) * bytesPerRow + (sx + col) * 4;
+            const dst = (row * size + col) * 4;
+            imgData.data[dst]     = raw[src];
+            imgData.data[dst + 1] = raw[src + 1];
+            imgData.data[dst + 2] = raw[src + 2];
+            imgData.data[dst + 3] = raw[src + 3];
+          }
+        }
+
+        readBuf.unmap();
+        readBuf.destroy();
+        offTex.destroy();
+
+        exportContext.putImageData(imgData, 0, 0);
 
         const blob = await new Promise((resolve, reject) => {
           exportCanvas.toBlob((pngBlob) => {
@@ -615,7 +706,6 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
               resolve(pngBlob);
               return;
             }
-
             reject(new Error('PNGの生成に失敗しました。'));
           }, 'image/png');
         });
@@ -654,12 +744,14 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
       for (const input of Object.values(controls)) {
         input.addEventListener('input', () => {
           syncLabels();
+          saveSettings();
           render();
         });
       }
 
       autoRotateEl.addEventListener('change', () => {
         syncLabels();
+        saveSettings();
         render();
       });
 
