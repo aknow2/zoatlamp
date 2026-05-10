@@ -24,6 +24,15 @@ module frame() {
 	]);
 }
 
+module guide() {
+    translate([0,-30,0])
+        cube([60, 4, 20], center=true);
+    cube([60, 31.2, 20], center=true);
+    translate([0,30,0])
+        cube([60, 4, 20], center=true);
+}
+
+/*
 difference() {
     union() {
         frame();
@@ -32,21 +41,18 @@ difference() {
             cylinder(d=59.8, h=9);
         }
     }
+    scale([0.9, 0.9, 0.9]) frame();
     cylinder(d=55, h=140);
+    translate([105, 0, 60]) {
+        guide();
+    }
 }
 
-module guide() {
-    translate([0,-25,0])
-        cube([60, 4, 20], center=true);
-    cube([60, 31.2, 20], center=true);
-    translate([0,25,0])
-        cube([60, 4, 20], center=true);
-}
 
-translate([125, 0, 110]) rotate([0, -90, 0]) {
-    motor_lid();
-}
 
-translate([112, 0, 60]) {
-    guide();
+*/
+
+
+rotate([0, -90, 0]) {
+   //motor_lid();
 }

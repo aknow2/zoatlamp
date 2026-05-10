@@ -6,6 +6,8 @@ $fn = $preview ? 96 : 220;
 pitch_mm = 3;
 pitch_in = pitch_mm / 25.4;
 
+s3m_tooth_thickness_mm = 1.90;
+
 
 
 // S3M-519 has 519/3 = 173 belt teeth (reference only).
@@ -45,19 +47,25 @@ module s3m_pulley_teeth_from_pulleye(h_mm, nteeth) {
 		);
 }
 
-module pulley_reimpl_with_pulleye(target_pitch_radius_mm = 12) {
+function s3m_pitch_radius_for_outer_diameter_mm(outer_diameter_mm) =
+	outer_diameter_mm / 2 + s3m_tooth_thickness_mm / 2;
+
+module pulley_reimpl_with_pulleye(target_pitch_radius_mm = 12, h_mm = toothed_height_mm) {
 
 	pulley_teeth = round((2 * PI * target_pitch_radius_mm) / pitch_mm);
 	pitch_r = pulley_teeth * pitch_mm / (2 * PI);
+	outer_d = 2 * (pitch_r - s3m_tooth_thickness_mm / 2);
 
-	s3m_pulley_teeth_from_pulleye(h_mm = toothed_height_mm, nteeth = pulley_teeth);
+	s3m_pulley_teeth_from_pulleye(h_mm = h_mm, nteeth = pulley_teeth);
 
 	echo("pulley_teeth", pulley_teeth);
 	echo("pitch_radius_mm", pitch_r);
+	echo("outer_diameter_mm", outer_d);
 	echo("s3m519_belt_teeth", belt_teeth_s3m_519);
 }
 
 
+module center_gear() {
 
 difference() {
 	union() {
@@ -74,3 +82,42 @@ difference() {
 	cylinder(d=78.2, h=13, center=true);
 	cylinder(d=55, h=200, center=true);
 }
+}
+// Dカット軸用の穴
+// shaft_d: 軸の直径
+// flat_to_round: 平面から反対側の丸い外周までの距離
+// depth: 穴の深さ
+// shaft_d_adjust: 穴の直径を調整するための値（0に近いほど実際の軸に近いサイズになる）
+module d_shaft_hole(
+    shaft_d = 4.5,
+    flat_to_round = 3.85,
+    depth = 13,
+    shaft_d_adjust = 0
+) {
+    r = (shaft_d + shaft_d_adjust) / 2;
+
+    intersection() {
+        // 丸軸部分
+        cylinder(h = depth, r = r, $fn = 60);
+        // Dカットするための四角形
+        // y方向を削ってD形状にする
+        translate([-r, -r, 0])
+            cube([
+                shaft_d,
+                flat_to_round,
+                depth
+            ]);
+    }
+}
+
+module motor_gear(shaft_adjust = 0) {
+    difference() {
+		pulley_reimpl_with_pulleye(
+			target_pitch_radius_mm = s3m_pitch_radius_for_outer_diameter_mm(25),
+			h_mm = 20
+		);
+		translate([0, 0, -1])
+        d_shaft_hole(shaft_d_adjust = shaft_adjust);
+    }
+}
+
