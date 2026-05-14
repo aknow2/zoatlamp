@@ -73,7 +73,7 @@ difference() {
 		translate([0,0,19])
 			difference() {
 				cylinder(d=103, h=10);
-				cylinder(h=18,r=49.6, $fn=6);
+				cylinder(h=18,r=50, $fn=6);
 			}
 		cylinder(r=74, h=2);
 		pulley_reimpl_with_pulleye(target_pitch_radius_mm = 72.5);
@@ -112,12 +112,18 @@ module d_shaft_hole(
 
 module motor_gear(shaft_adjust = 0) {
     difference() {
-		pulley_reimpl_with_pulleye(
-			target_pitch_radius_mm = s3m_pitch_radius_for_outer_diameter_mm(25),
-			h_mm = 20
-		);
-		translate([0, 0, -1])
+		union() {
+			pulley_reimpl_with_pulleye(
+				target_pitch_radius_mm = s3m_pitch_radius_for_outer_diameter_mm(25),
+				h_mm = 20
+			);
+			cylinder(h=23, d=9);
+		}
+
+		translate([0, 0, 23-12])
         d_shaft_hole(shaft_d_adjust = shaft_adjust);
     }
 }
 
+center_gear();
+motor_gear();

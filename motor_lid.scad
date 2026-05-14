@@ -8,10 +8,10 @@ motor_bottom = motor_center_height - motor_d / 2;
 
 // Clearance and fastener dimensions used to hollow the case for the motor body.
 clearance = 0.9;
-wall = 2;
+wall = 1.8;
 shaft_d = 8;
 hole_r = 17/2;
-hole_d = 4;
+hole_d = 3.8;
 
 // Outer case dimensions. X is motor depth, Y is width, Z is height.
 box_h = motor_d + wall;
@@ -19,7 +19,7 @@ box_t = motor_d + front_flange_t + 2;
 case_outer_h = 70;
 case_outer_w = box_h + 40;
 case_outer_d = box_h+5;
-lid_t = 5;
+lid_t = 3;
 
 // The lid sits on the left face of the case and is rectangular in front view.
 module motor_lid_blank(extra=0) {
@@ -53,8 +53,6 @@ module motor_case_cutouts() {
 module adjust_hole(x=0) {
     translate([0, x, motor_center_height])
         rotate([0, 90, 0]) {
-            translate([0, 0, wall + 1])
-                cylinder(d=hole_d + 7, h=case_outer_h + 2, center=true);
             cylinder(d=hole_d, h=case_outer_h + 2, center=true);
         }
 }
@@ -65,7 +63,7 @@ module motor_lid(extra=-0.5) {
     difference() {
         motor_lid_blank(extra);
         motor_case_cutouts();
-        adjust_hole(30);
-        adjust_hole(-30);
+        adjust_hole(25);
+        adjust_hole(-25);
     }
 }
