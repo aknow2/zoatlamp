@@ -13,13 +13,27 @@ function printUsage() {
   console.log(
     [
       "Usage:",
-      "  node index.js [--input-dir ./input] [--output-dir ./output] [--width 2048] [--height 1024]",
+      "  node index.js [--input-dir ./input] [--output-dir ./output] [--width 2048] [--height 1024] [--trim-all 0] [--trim-top 0] [--trim-right 0] [--trim-bottom 0] [--trim-left 0]",
       "",
       "Examples:",
       "  node index.js",
-      "  npm run convert -- --input-dir ./input --output-dir ./output --width 2048 --height 1024"
+      "  npm run convert -- --input-dir ./input --output-dir ./output --width 2048 --height 1024 --trim-all 24",
+      "  npm run convert -- --input-dir ./input --output-dir ./output --width 2048 --height 1024 --trim-all 24 --trim-top 32"
     ].join("\n")
   );
+}
+
+function readNumberOption(arg, nextValue, { allowZero = false } = {}) {
+  const numericValue = Number.parseInt(nextValue, 10);
+  const isValid = allowZero
+    ? Number.isInteger(numericValue) && numericValue >= 0
+    : Number.isInteger(numericValue) && numericValue > 0;
+
+  if (!isValid) {
+    throw new Error(`Invalid value for ${arg}: ${nextValue}`);
+  }
+
+  return numericValue;
 }
 
 function parseArgs(argv) {
@@ -27,7 +41,11 @@ function parseArgs(argv) {
     inputDir: DEFAULT_INPUT_DIR,
     outputDir: DEFAULT_OUTPUT_DIR,
     width: 2048,
-    height: 1024
+    height: 1024,
+    trimTop: 0,
+    trimRight: 0,
+    trimBottom: 0,
+    trimLeft: 0
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -38,7 +56,17 @@ function parseArgs(argv) {
       continue;
     }
 
-    if (arg === "--width" || arg === "--height" || arg === "--input-dir" || arg === "--output-dir") {
+    if (
+      arg === "--width" ||
+      arg === "--height" ||
+      arg === "--input-dir" ||
+      arg === "--output-dir" ||
+      arg === "--trim-all" ||
+      arg === "--trim-top" ||
+      arg === "--trim-right" ||
+      arg === "--trim-bottom" ||
+      arg === "--trim-left"
+    ) {
       const key = arg.slice(2);
       const nextValue = argv[index + 1];
 
@@ -52,13 +80,21 @@ function parseArgs(argv) {
         continue;
       }
 
-      const numericValue = Number.parseInt(nextValue, 10);
+      const optionName = key.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+      const numericValue = readNumberOption(arg, nextValue, {
+        allowZero: optionName.startsWith("trim")
+      });
 
-      if (!Number.isInteger(numericValue) || numericValue <= 0) {
-        throw new Error(`Invalid value for ${arg}: ${nextValue}`);
+      if (optionName === "trimAll") {
+        options.trimTop = numericValue;
+        options.trimRight = numericValue;
+        options.trimBottom = numericValue;
+        options.trimLeft = numericValue;
+        index += 1;
+        continue;
       }
 
-      options[key] = numericValue;
+      options[optionName] = numericValue;
       index += 1;
       continue;
     }
@@ -112,7 +148,16 @@ function copyPixel(source, sourceWidth, sx, sy, target, targetWidth, tx, ty, cha
   source.copy(target, targetOffset, sourceOffset, sourceOffset + channels);
 }
 
-async function convertPolarToMirroredSphere({ inputPath, outputPath, width, height }) {
+async function convertPolarToMirroredSphere({
+  inputPath,
+  outputPath,
+  width,
+  height,
+  trimTop,
+  trimRight,
+  trimBottom,
+  trimLeft
+}) {
   if (!inputPath) {
     throw new Error("An input image path is required.");
   }
@@ -128,10 +173,28 @@ async function convertPolarToMirroredSphere({ inputPath, outputPath, width, heig
     throw new Error(`Input image does not exist: ${resolvedInput}`);
   }
 
-  const { data: source, info } = await sharp(resolvedInput)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+  const inputMetadata = await sharp(resolvedInput).metadata();
+  const croppedWidth = inputMetadata.width - trimLeft - trimRight;
+  const croppedHeight = inputMetadata.height - trimTop - trimBottom;
+
+  if (croppedWidth <= 0 || croppedHeight <= 0) {
+    throw new Error(
+      `Trim removes the entire image: ${resolvedInput} (${inputMetadata.width}x${inputMetadata.height})`
+    );
+  }
+
+  let sourcePipeline = sharp(resolvedInput).ensureAlpha();
+
+  if (trimTop > 0 || trimRight > 0 || trimBottom > 0 || trimLeft > 0) {
+    sourcePipeline = sourcePipeline.extract({
+      left: trimLeft,
+      top: trimTop,
+      width: croppedWidth,
+      height: croppedHeight
+    });
+  }
+
+  const { data: source, info } = await sourcePipeline.raw().toBuffer({ resolveWithObject: true });
 
   const sourceWidth = info.width;
   const sourceHeight = info.height;
@@ -177,7 +240,16 @@ async function convertPolarToMirroredSphere({ inputPath, outputPath, width, heig
   };
 }
 
-async function convertInputDirectory({ inputDir, outputDir, width, height }) {
+async function convertInputDirectory({
+  inputDir,
+  outputDir,
+  width,
+  height,
+  trimTop,
+  trimRight,
+  trimBottom,
+  trimLeft
+}) {
   if (height % 2 !== 0) {
     throw new Error("--height must be an even number so the hemisphere can be mirrored exactly.");
   }
@@ -192,7 +264,11 @@ async function convertInputDirectory({ inputDir, outputDir, width, height }) {
       inputPath,
       outputPath: defaultBatchOutputPath(inputPath, outputDir),
       width,
-      height
+      height,
+      trimTop,
+      trimRight,
+      trimBottom,
+      trimLeft
     });
 
     results.push(result);
