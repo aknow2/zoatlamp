@@ -1,0 +1,163 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  min-height: 100dvh;
+}
+
+header {
+  padding: 12px 20px;
+  background: #111;
+  border-bottom: 1px solid #333;
+}
+
+header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+/* Two-column layout */
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 0;
+  height: calc(100dvh - 49px);
+  overflow: hidden;
+}
+
+/* Settings Panel */
+.settings-panel {
+  background: #222;
+  border-right: 1px solid #333;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field label {
+  font-size: 12px;
+  color: #aaa;
+}
+
+.field input[type="number"],
+.field input[type="file"] {
+  background: #2c2c2c;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #e0e0e0;
+  padding: 6px 8px;
+  font-size: 14px;
+  width: 100%;
+}
+
+.field input[type="number"]:focus,
+.field input[type="file"]:focus {
+  outline: 2px solid #4a9eff;
+  outline-offset: 1px;
+}
+
+.error-message {
+  color: #ff6b6b;
+  font-size: 12px;
+  min-height: 1em;
+  line-height: 1.4;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+#generateButton {
+  background: #4a9eff;
+  color: #fff;
+}
+
+#downloadButton {
+  background: #2ecc71;
+  color: #fff;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+button:not(:disabled):hover {
+  opacity: 0.85;
+}
+
+/* Preview Area */
+.preview-area {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  overflow-y: auto;
+  background: #1a1a1a;
+}
+
+/* Video preview with overlay canvas */
+.video-preview {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  max-width: 100%;
+}
+
+#sourceVideo {
+  display: block;
+  max-width: 100%;
+  max-height: 360px;
+  background: #000;
+}
+
+#overlayCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  cursor: crosshair;
+}
+
+/* Allow pointer events on overlay for click detection */
+.video-preview #overlayCanvas {
+  pointer-events: auto;
+}
+
+#outputCanvas {
+  display: block;
+  max-width: 100%;
+  background: transparent;
+  border: 1px solid #333;
+}
