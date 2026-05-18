@@ -1,4 +1,5 @@
 import './styles.css';
+import { createRadialSliceFilename, downloadCanvasAsPng } from './download.ts';
 import { extractFrames } from './frameExtractor.ts';
 import { getVideoPointFromPointerEvent } from './geometry.ts';
 import { drawInputGuide, renderRadialImage } from './renderer.ts';
@@ -13,6 +14,7 @@ const sourceVideo = document.getElementById('sourceVideo') as HTMLVideoElement;
 const overlayCanvas = document.getElementById('overlayCanvas') as HTMLCanvasElement;
 const outputCanvas = document.getElementById('outputCanvas') as HTMLCanvasElement;
 const generateButton = document.getElementById('generateButton') as HTMLButtonElement;
+const downloadButton = document.getElementById('downloadButton') as HTMLButtonElement;
 const settingInputIds = [
   'startSecondInput',
   'frameCountInput',
@@ -134,9 +136,24 @@ async function onGenerateClick(): Promise<void> {
   }
 }
 
+async function onDownloadClick(): Promise<void> {
+  if (state.frames.length === 0) return;
+
+  try {
+    const filename = createRadialSliceFilename(state.settings.frameCount);
+    await downloadCanvasAsPng(outputCanvas, filename);
+    state.errorMessage = null;
+  } catch {
+    state.errorMessage = '画像生成に失敗しました。フレーム数や出力サイズを小さくしてください。';
+  }
+
+  updateUI(state);
+}
+
 videoFileInput.addEventListener('change', onVideoFileChange);
 overlayCanvas.addEventListener('pointerdown', onOverlayPointerDown);
 generateButton.addEventListener('click', onGenerateClick);
+downloadButton.addEventListener('click', onDownloadClick);
 
 sourceVideo.addEventListener('loadedmetadata', () => {
   syncOverlayCanvas();
