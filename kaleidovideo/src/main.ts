@@ -1,14 +1,17 @@
 import './styles.css';
+import { extractFrames } from './frameExtractor.ts';
 import { getVideoPointFromPointerEvent } from './geometry.ts';
 import { drawInputGuide } from './renderer.ts';
 import { state } from './state.ts';
 import { readSettingsFromUI } from './ui.ts';
+import { validateGenerateRequest } from './validate.ts';
 import { loadVideoFile } from './video.ts';
 import { updateUI } from './ui.ts';
 
 const videoFileInput = document.getElementById('videoFileInput') as HTMLInputElement;
 const sourceVideo = document.getElementById('sourceVideo') as HTMLVideoElement;
 const overlayCanvas = document.getElementById('overlayCanvas') as HTMLCanvasElement;
+const generateButton = document.getElementById('generateButton') as HTMLButtonElement;
 const settingInputIds = [
   'startSecondInput',
   'frameCountInput',
@@ -40,7 +43,9 @@ function onOverlayPointerDown(event: PointerEvent): void {
 
 function onSettingsChange(): void {
   state.settings = readSettingsFromUI();
+  state.frames = [];
   redrawGuide();
+  updateUI(state);
 }
 
 async function onVideoFileChange(event: Event): Promise<void> {
@@ -78,8 +83,34 @@ async function onVideoFileChange(event: Event): Promise<void> {
   updateUI(state);
 }
 
+async function onGenerateClick(): Promise<void> {
+  state.settings = readSettingsFromUI();
+
+  const validationError = validateGenerateRequest(state);
+  if (validationError) {
+    state.errorMessage = validationError;
+    updateUI(state);
+    return;
+  }
+
+  state.isGenerating = true;
+  state.frames = [];
+  state.errorMessage = null;
+  updateUI(state);
+
+  try {
+    state.frames = await extractFrames(sourceVideo, state.settings);
+  } catch {
+    state.errorMessage = 'フレームの取得に失敗しました。';
+  } finally {
+    state.isGenerating = false;
+    updateUI(state);
+  }
+}
+
 videoFileInput.addEventListener('change', onVideoFileChange);
 overlayCanvas.addEventListener('pointerdown', onOverlayPointerDown);
+generateButton.addEventListener('click', onGenerateClick);
 
 sourceVideo.addEventListener('loadedmetadata', () => {
   syncOverlayCanvas();
