@@ -1,7 +1,7 @@
 import './styles.css';
 import { extractFrames } from './frameExtractor.ts';
 import { getVideoPointFromPointerEvent } from './geometry.ts';
-import { drawInputGuide } from './renderer.ts';
+import { drawInputGuide, renderRadialImage } from './renderer.ts';
 import { state } from './state.ts';
 import { readSettingsFromUI } from './ui.ts';
 import { validateGenerateRequest } from './validate.ts';
@@ -11,6 +11,7 @@ import { updateUI } from './ui.ts';
 const videoFileInput = document.getElementById('videoFileInput') as HTMLInputElement;
 const sourceVideo = document.getElementById('sourceVideo') as HTMLVideoElement;
 const overlayCanvas = document.getElementById('overlayCanvas') as HTMLCanvasElement;
+const outputCanvas = document.getElementById('outputCanvas') as HTMLCanvasElement;
 const generateButton = document.getElementById('generateButton') as HTMLButtonElement;
 const settingInputIds = [
   'startSecondInput',
@@ -31,6 +32,11 @@ function redrawGuide(): void {
   drawInputGuide(overlayCanvas, state);
 }
 
+function clearOutputCanvas(): void {
+  outputCanvas.width = 0;
+  outputCanvas.height = 0;
+}
+
 function onOverlayPointerDown(event: PointerEvent): void {
   if (!state.videoMeta) return;
 
@@ -44,6 +50,7 @@ function onOverlayPointerDown(event: PointerEvent): void {
 function onSettingsChange(): void {
   state.settings = readSettingsFromUI();
   state.frames = [];
+  clearOutputCanvas();
   redrawGuide();
   updateUI(state);
 }
@@ -63,6 +70,7 @@ async function onVideoFileChange(event: Event): Promise<void> {
   state.samplePoint = null;
   state.frames = [];
   state.errorMessage = null;
+  clearOutputCanvas();
 
   try {
     const meta = await loadVideoFile(file, sourceVideo);
@@ -99,8 +107,26 @@ async function onGenerateClick(): Promise<void> {
   updateUI(state);
 
   try {
-    state.frames = await extractFrames(sourceVideo, state.settings);
+    const frames = await extractFrames(sourceVideo, state.settings);
+    const samplePoint = state.samplePoint;
+
+    if (!samplePoint) {
+      state.errorMessage = '動画上で切り出し基準点を指定してください。';
+      return;
+    }
+
+    try {
+      renderRadialImage(frames, samplePoint, state.settings, outputCanvas);
+      state.frames = frames;
+    } catch (err) {
+      state.frames = [];
+      state.errorMessage =
+        err instanceof Error && err.message === 'Failed to get output canvas context'
+          ? 'Canvas を初期化できませんでした。'
+          : '画像生成に失敗しました。フレーム数や出力サイズを小さくしてください。';
+    }
   } catch {
+    state.frames = [];
     state.errorMessage = 'フレームの取得に失敗しました。';
   } finally {
     state.isGenerating = false;
