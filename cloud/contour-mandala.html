@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WebGPU Symmetric Ink Cloud</title>
+  <title>WebGPU Symmetric Contour Mandala</title>
 
   <style>
     :root {
       color-scheme: dark;
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #000000;
-      color: #f3eadc;
+      color: #fff7df;
     }
 
     * { box-sizing: border-box; }
@@ -34,7 +34,7 @@
       max-height: 100vh;
       min-height: 0;
       padding: 18px;
-      background: rgba(20, 18, 16, 0.92);
+      background: rgba(18, 15, 10, 0.94);
       border-right: 1px solid rgba(255, 255, 255, 0.12);
       overflow-y: auto;
       overflow-x: hidden;
@@ -51,7 +51,7 @@
       margin: 0 0 18px;
       font-size: 12px;
       line-height: 1.6;
-      color: rgba(243, 234, 220, 0.72);
+      color: rgba(255, 247, 223, 0.72);
     }
 
     label {
@@ -59,7 +59,7 @@
       gap: 7px;
       margin: 14px 0;
       font-size: 12px;
-      color: rgba(243, 234, 220, 0.86);
+      color: rgba(255, 247, 223, 0.86);
     }
 
     input[type="range"] { width: 100%; }
@@ -70,7 +70,7 @@
       gap: 10px;
       margin: 16px 0 8px;
       font-size: 13px;
-      color: rgba(243, 234, 220, 0.92);
+      color: rgba(255, 247, 223, 0.92);
     }
 
     .checkRow label {
@@ -81,15 +81,15 @@
     button {
       width: 100%;
       border: 1px solid rgba(255, 255, 255, 0.16);
-      background: #2b2621;
-      color: #f3eadc;
+      background: #2f2818;
+      color: #fff7df;
       border-radius: 10px;
       padding: 11px 12px;
       cursor: pointer;
       margin-top: 12px;
     }
 
-    button:hover { background: #373029; }
+    button:hover { background: #41351f; }
 
     main {
       position: relative;
@@ -114,7 +114,7 @@
       place-items: center;
       padding: 32px;
       text-align: center;
-      color: #f3eadc;
+      color: #fff7df;
       background: #000000;
       font-weight: 700;
       line-height: 1.7;
@@ -138,34 +138,46 @@
 
 <body>
   <aside>
-    <h1>点対称・墨雲 WebGPU</h1>
+    <h1>点対称・等高線マンダラ WebGPU</h1>
     <p>
-      中心から放射状に広がる墨雲を WebGPU で生成します。<br>
-      模様自体は静止し、画像全体のみを回転させます。
+      雲ノイズを細い等高線に変換して WebGPU で生成します。<br>
+      山岳地図、年輪、指紋のような線のマンダラを作ります。
     </p>
 
     <label>
       対称数
       <span class="value" id="symmetryValue"></span>
-      <input id="symmetry" type="range" min="2" max="100" step="1" value="20">
+      <input id="symmetry" type="range" min="2" max="100" step="1" value="48">
     </label>
 
     <label>
-      雲の濃さ
+      線密度
       <span class="value" id="cloudValue"></span>
-      <input id="cloud" type="range" min="0" max="2" step="0.01" value="0.8">
+      <input id="cloud" type="range" min="4" max="80" step="1" value="32">
     </label>
 
     <label>
-      雲の渦
+      地形のうねり
       <span class="value" id="swirlValue"></span>
-      <input id="swirl" type="range" min="0" max="100" step="0.01" value="7">
+      <input id="swirl" type="range" min="0" max="100" step="0.01" value="34">
     </label>
 
     <label>
-      余白
+      線幅
       <span class="value" id="paperValue"></span>
-      <input id="paper" type="range" min="0" max="1" step="0.01" value="0.26">
+      <input id="paper" type="range" min="0.004" max="0.08" step="0.001" value="0.018">
+    </label>
+
+    <label>
+      にじみ
+      <span class="value" id="bleedValue"></span>
+      <input id="bleed" type="range" min="0" max="1" step="0.01" value="0.30">
+    </label>
+
+    <label>
+      金インク量
+      <span class="value" id="goldInkValue"></span>
+      <input id="goldInk" type="range" min="0" max="1" step="0.01" value="0.28">
     </label>
 
     <label>
@@ -177,7 +189,13 @@
     <label>
       位相ずれ
       <span class="value" id="staggerValue"></span>
-      <input id="stagger" type="range" min="0" max="2" step="0.01" value="0.1">
+      <input id="stagger" type="range" min="0" max="2" step="0.01" value="0.16">
+    </label>
+
+    <label>
+      折り返し数
+      <span class="value" id="foldCountValue"></span>
+      <input id="foldCount" type="range" min="1" max="12" step="1" value="5">
     </label>
 
     <label>
@@ -209,7 +227,9 @@
 
     <div class="note">
       中心Y位置はプラスにすると上へ、マイナスにすると下へ移動します。<br>
-      位相ずれは、対称セクターごとの模様のズレ量です。<br>
+      線密度は fbm ノイズを等高線化するときの分割数です。<br>
+      にじみは線の周囲の淡い染み込みを増減します。<br>
+      金インク量を上げると、高い稜線に金色の線が混ざります。<br>
       回転スピードは -720 ～ 720 deg/sec で設定できます。<br>
       マイナスにすると逆回転します。<br>
       PNG保存では、現在の中心位置を基準に正方形で切り抜いて保存します。
@@ -233,8 +253,11 @@
       'cloud',
       'swirl',
       'paper',
+      'bleed',
+      'goldInk',
       'centerY',
       'stagger',
+      'foldCount',
       'rotation',
       'rotationSpeed',
       'refreshRate',
@@ -259,8 +282,11 @@
         cloud: Number(controls.cloud.value),
         swirl: Number(controls.swirl.value),
         paper: Number(controls.paper.value),
+        bleed: Number(controls.bleed.value),
+        goldInk: Number(controls.goldInk.value),
         centerY: Number(controls.centerY.value),
         stagger: Number(controls.stagger.value),
+        foldCount: Number(controls.foldCount.value),
         rotation: Number(controls.rotation.value),
         rotationSpeed: Number(controls.rotationSpeed.value),
         refreshRate: Number(controls.refreshRate.value),
@@ -272,17 +298,20 @@
       const params = readParams();
 
       valueEls.symmetry.textContent = String(params.symmetry);
-      valueEls.cloud.textContent = params.cloud.toFixed(2);
+      valueEls.cloud.textContent = `${Math.round(params.cloud)}`;
       valueEls.swirl.textContent = params.swirl.toFixed(2);
-      valueEls.paper.textContent = params.paper.toFixed(2);
+      valueEls.paper.textContent = params.paper.toFixed(3);
+      valueEls.bleed.textContent = params.bleed.toFixed(2);
+      valueEls.goldInk.textContent = params.goldInk.toFixed(2);
       valueEls.centerY.textContent = params.centerY.toFixed(2);
       valueEls.stagger.textContent = params.stagger.toFixed(2);
+      valueEls.foldCount.textContent = `${Math.round(params.foldCount)}`;
       valueEls.rotation.textContent = `${Math.round(params.rotation)}°`;
       valueEls.rotationSpeed.textContent = `${Math.round(params.rotationSpeed)}°/s`;
       valueEls.refreshRate.textContent = `${Math.round(params.refreshRate)} FPS`;
     }
 
-    const STORAGE_KEY = 'inkCloud_settings_v1';
+    const STORAGE_KEY = 'contourMandala_settings_v1';
 
     function saveSettings() {
       const data = {};
@@ -325,9 +354,12 @@
     let lastRenderMs = 0;
 
     function runSelfTests() {
-      console.assert(controls.symmetry.max === '60', '対称数の最大値は40であるべきです');
+      console.assert(controls.symmetry.max === '100', '対称数の最大値は100であるべきです');
       console.assert(controls.centerY !== null, 'centerY スライダーが存在するべきです');
+      console.assert(controls.bleed !== null, 'bleed スライダーが存在するべきです');
+      console.assert(controls.goldInk !== null, 'goldInk スライダーが存在するべきです');
       console.assert(controls.stagger !== null, 'stagger スライダーが存在するべきです');
+      console.assert(controls.foldCount !== null, 'foldCount スライダーが存在するべきです');
       console.assert(controls.rotation !== null, 'rotation スライダーが存在するべきです');
       console.assert(controls.rotationSpeed !== null, 'rotationSpeed スライダーが存在するべきです');
       console.assert(controls.refreshRate !== null, 'refreshRate スライダーが存在するべきです');
@@ -335,7 +367,10 @@
       console.assert(controls.rotationSpeed.max === '720', 'rotationSpeed の最大値は 720 であるべきです');
       console.assert(savePngButton !== null, 'savePng ボタンが存在するべきです');
       console.assert(typeof readParams().centerY === 'number', 'centerY は number であるべきです');
+      console.assert(typeof readParams().bleed === 'number', 'bleed は number であるべきです');
+      console.assert(typeof readParams().goldInk === 'number', 'goldInk は number であるべきです');
       console.assert(typeof readParams().stagger === 'number', 'stagger は number であるべきです');
+      console.assert(typeof readParams().foldCount === 'number', 'foldCount は number であるべきです');
       console.assert(getSquareCropRect(800, 600, 0).size === 600, '横長画面では短辺で切り抜くべきです');
       console.assert(getSquareCropRect(800, 600, 0).sx === 100, 'centerY=0 の切り抜きXは中央寄せであるべきです');
       console.assert(getSquareCropRect(800, 600, 0).sy === 0, 'centerY=0 の切り抜きYは中央寄せであるべきです');
@@ -395,12 +430,16 @@ struct Uniforms {
   cloud: f32,
   swirl: f32,
   paper: f32,
+  bleed: f32,
+  goldInk: f32,
   centerY: f32,
   stagger: f32,
+  foldCount: f32,
   rotation: f32,
   seed: f32,
   pad0: f32,
   pad1: f32,
+  pad2: f32,
 };
 
 @group(0) @binding(0) var<uniform> u: Uniforms;
@@ -435,6 +474,55 @@ fn fbm(p0: vec2f) -> f32 {
   }
 
   return value;
+}
+
+fn hash2(p: vec2f) -> vec2f {
+  let q = vec2f(
+    dot(p, vec2f(127.1, 311.7)),
+    dot(p, vec2f(269.5, 183.3))
+  );
+  return fract(sin(q) * 43758.5453123);
+}
+
+fn contourPalette(t: f32) -> vec3f {
+  let soot = vec3f(0.10, 0.095, 0.080);
+  let umber = vec3f(0.35, 0.25, 0.14);
+  let bone = vec3f(0.88, 0.84, 0.68);
+  let mist = vec3f(0.72, 0.83, 0.78);
+
+  let warm = mix(soot, umber, smoothstep(0.05, 0.38, t));
+  let pale = mix(bone, mist, smoothstep(0.48, 0.92, t));
+  return mix(warm, pale, smoothstep(0.30, 0.86, t));
+}
+
+fn voronoi(p: vec2f) -> vec4f {
+  let cell = floor(p);
+  let local = fract(p);
+  var nearest = 1000.0;
+  var secondNearest = 1000.0;
+  var cellShade = 0.0;
+  var cellTint = 0.0;
+
+  for (var y: i32 = -1; y <= 1; y = y + 1) {
+    for (var x: i32 = -1; x <= 1; x = x + 1) {
+      let neighbor = vec2f(f32(x), f32(y));
+      let cellId = cell + neighbor;
+      let jitter = 0.18 + 0.64 * hash2(cellId + vec2f(u.seed * 0.000003, u.seed * 0.000005));
+      let delta = neighbor + jitter - local;
+      let d = dot(delta, delta);
+
+      if (d < nearest) {
+        secondNearest = nearest;
+        nearest = d;
+        cellShade = hash(cellId + vec2f(41.7, 19.3));
+        cellTint = hash(cellId + vec2f(7.1, 83.4));
+      } else if (d < secondNearest) {
+        secondNearest = d;
+      }
+    }
+  }
+
+  return vec4f(sqrt(nearest), sqrt(secondNearest) - sqrt(nearest), cellShade, cellTint);
 }
 
 @vertex
@@ -480,7 +568,6 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let sectorIndex = floor(wrappedAngle / sectorAngle);
   let mirroredIndex = min(sectorIndex, symmetry - sectorIndex);
 
-  // 模様自体は時間変化させず、セクターごとに静的な位相差を与える。
   let phase = mirroredIndex * u.stagger;
   let phaseVec = vec2f(cos(phase), sin(phase));
 
@@ -488,39 +575,76 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
     fract((rawAngle + sectorAngle * 0.5) / sectorAngle) * sectorAngle - sectorAngle * 0.5
   );
 
-  let folded = vec2f(cos(foldedAngle), sin(foldedAngle)) * radius;
+  let foldCount = max(1.0, floor(u.foldCount + 0.5));
+  let microSectorAngle = sectorAngle / foldCount;
+  let foldedAngle2 = abs(
+    fract((rawAngle + microSectorAngle * 0.5) / microSectorAngle) * microSectorAngle - microSectorAngle * 0.5
+  );
+
+  let kaleidoBlend = 0.55 + 0.35 * smoothstep(1.0, 8.0, foldCount);
+  let blendAngle = mix(foldedAngle, foldedAngle2, kaleidoBlend);
+
+  let folded = vec2f(cos(blendAngle), sin(blendAngle)) * radius;
   let seedOffset = vec2f(u.seed * 0.000001, u.seed * 0.0000007);
 
-  let basePoint = folded * (2.1 + radius * 2.6);
+  let phaseOffset = phaseVec * 0.36 + vec2f(phaseVec.y, -phaseVec.x) * 0.20;
+  let warpStrength = u.swirl * 0.018;
+  let warpA = fbm(folded * 1.7 + seedOffset + phaseOffset) - 0.5;
+  let warpB = fbm(folded * 3.2 - seedOffset + vec2f(phaseOffset.y, -phaseOffset.x)) - 0.5;
 
-  // 位相ずれはノイズ座標を少しずらして表現する。
-  // 時間は使わないため、模様が下へ流れることはない。
-  let phaseOffset1 = phaseVec * 0.20;
-  let phaseOffset2 = vec2f(phaseVec.y, -phaseVec.x) * 0.14;
+  let terrainPoint = folded * (2.15 + radius * 2.85)
+    + vec2f(warpA, warpB) * warpStrength
+    + vec2f(radius * 0.42, -radius * 0.18)
+    + phaseOffset * 0.72;
 
-  let warp = fbm(basePoint * 1.05 + seedOffset + phaseOffset1) - 0.5;
+  var height = fbm(terrainPoint * 1.55 + seedOffset);
+  height += 0.46 * fbm(terrainPoint * 3.20 - seedOffset + phaseOffset);
+  height += 0.22 * fbm(terrainPoint * 6.30 + vec2f(7.7, 3.1));
+  height = height / 1.68;
 
-  let cloudPoint = basePoint
-    + vec2f(u.swirl * warp, -u.swirl * 0.18 * radius)
-    + phaseOffset2 * 0.35;
+  let grain = fbm(terrainPoint * 12.0 + seedOffset * 3.0);
+  let density = max(4.0, u.cloud);
+  let level = height * density + radius * 3.2 + mirroredIndex * u.stagger * 0.18;
+  let contourPhase = fract(level);
+  let contourDist = min(contourPhase, 1.0 - contourPhase);
+  let derivative = fwidth(level) * 0.55 + 0.0015;
+  let lineWidth = max(0.002, u.paper);
+  let fineLine = 1.0 - smoothstep(lineWidth, lineWidth + derivative + u.bleed * 0.018, contourDist);
 
-  var ink = fbm(cloudPoint * 2.2 + seedOffset + phaseOffset1);
-  ink += 0.58 * fbm(cloudPoint * 5.1 - seedOffset + phaseOffset2);
+  let majorLevel = level / 5.0;
+  let majorPhase = fract(majorLevel);
+  let majorDist = min(majorPhase, 1.0 - majorPhase);
+  let majorLine = 1.0 - smoothstep(lineWidth * 1.7, lineWidth * 1.7 + derivative + u.bleed * 0.026, majorDist);
 
-  let radialRays = pow(abs(sin(foldedAngle * 5.5 + radius * 12.0 + warp * 2.0)), 5.0);
-  ink += radialRays * 0.24 * smoothstep(0.12, 0.95, radius);
+  let ringPhase = fract(radius * (10.0 + foldCount * 1.3) + height * 2.2 + warpA * 0.8);
+  let ringDist = min(ringPhase, 1.0 - ringPhase);
+  let ringLine = 1.0 - smoothstep(lineWidth * 0.95, lineWidth * 0.95 + derivative + 0.006, ringDist);
 
-  let radialMask = 1.0 - smoothstep(0.82, 1.08, radius);
-  ink *= radialMask;
+  let foldLine = 1.0 - smoothstep(0.0, microSectorAngle * (0.016 + lineWidth * 0.80), foldedAngle2);
+  let lineMask = max(fineLine, max(majorLine * 0.95, ringLine * 0.45));
+  let structure = max(lineMask, foldLine * 0.32 * smoothstep(0.05, 0.92, radius));
 
-  let inkMask = smoothstep(0.40 + u.paper * 0.25, 1.08, ink * u.cloud);
+  let bleedAura = 1.0 - smoothstep(lineWidth * 2.4, lineWidth * (9.0 + u.bleed * 18.0), contourDist);
+  let outerFade = 1.0 - smoothstep(0.96, 1.18, radius);
+  let ink = clamp(structure * outerFade, 0.0, 1.0);
+  let aura = clamp(bleedAura * u.bleed * 0.34 * outerFade, 0.0, 1.0);
 
-  let paperColor = vec3f(0.0, 0.0, 0.0);
-  let inkColor = vec3f(1.0, 1.0, 1.0);
+  let goldNoise = fbm(terrainPoint * 4.0 + vec2f(31.4, 12.8) + seedOffset);
+  let goldRidge = smoothstep(0.55, 0.96, height + majorLine * 0.24 + goldNoise * 0.18);
+  let goldMask = clamp(u.goldInk * goldRidge * pow(max(majorLine, fineLine * 0.32), 1.7), 0.0, 1.0);
 
-  let edgeFade = 1.0 - smoothstep(0.95, 1.18, radius);
-  let mixAmount = clamp(inkMask * edgeFade, 0.0, 0.95);
-  let color = mix(paperColor, inkColor, mixAmount);
+  let paperColor = vec3f(0.006, 0.005, 0.004);
+  let faintSepia = vec3f(0.18, 0.12, 0.065);
+  let inkColor = contourPalette(fract(height + radius * 0.24 + grain * 0.18));
+  let goldColor = vec3f(1.0, 0.72, 0.22);
+  let brightGold = vec3f(1.0, 0.92, 0.52);
+
+  var color = mix(paperColor, faintSepia, aura);
+  color = mix(color, inkColor, ink);
+  color = mix(color, goldColor, goldMask);
+  color += brightGold * pow(goldMask, 3.2) * 0.38;
+  color += vec3f(0.13, 0.10, 0.055) * pow(1.0 - clamp(radius, 0.0, 1.0), 2.8) * 0.28;
+  color = clamp(color, vec3f(0.0), vec3f(1.0));
 
   return vec4f(color, 1.0);
 }
@@ -588,10 +712,14 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
           params.cloud,
           params.swirl,
           params.paper,
+          params.bleed,
+          params.goldInk,
           params.centerY,
           params.stagger,
+          params.foldCount,
           rotationRad,
           seed,
+          0,
           0,
           0,
         ]);
@@ -610,7 +738,7 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
           colorAttachments: [
             {
               view,
-              clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+              clearValue: { r: 0.006, g: 0.005, b: 0.004, a: 1.0 },
               loadOp: 'clear',
               storeOp: 'store',
             },
@@ -652,7 +780,7 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         const pass = encoder.beginRenderPass({
           colorAttachments: [{
             view: offTex.createView(),
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            clearValue: { r: 0.006, g: 0.005, b: 0.004, a: 1.0 },
             loadOp: 'clear',
             storeOp: 'store',
           }],
@@ -714,7 +842,7 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         const link = document.createElement('a');
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         link.href = url;
-        link.download = `ink-cloud-square-${timestamp}.png`;
+        link.download = `contour-mandala-square-${timestamp}.png`;
         link.click();
         URL.revokeObjectURL(url);
       }

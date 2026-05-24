@@ -1,0 +1,997 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebGPU Ocean Wave</title>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #000000;
+      color: #eaf3ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      background: #000000;
+    }
+
+    aside {
+      height: 100vh;
+      max-height: 100vh;
+      min-height: 0;
+      padding: 18px;
+      background: rgba(12, 16, 22, 0.92);
+      border-right: 1px solid rgba(255, 255, 255, 0.12);
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0 0 8px;
+      letter-spacing: 0.04em;
+    }
+
+    p {
+      margin: 0 0 18px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: rgba(234, 243, 255, 0.72);
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      margin: 14px 0;
+      font-size: 12px;
+      color: rgba(234, 243, 255, 0.86);
+    }
+
+    input[type="range"] { width: 100%; }
+    input[type="color"] {
+      width: 100%;
+      height: 32px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: #1a212b;
+      border-radius: 8px;
+      padding: 2px;
+      cursor: pointer;
+    }
+
+    .checkRow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 16px 0 8px;
+      font-size: 13px;
+      color: rgba(234, 243, 255, 0.92);
+    }
+
+    .checkRow label {
+      margin: 0;
+      display: inline;
+    }
+
+    button {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: #1f2a36;
+      color: #eaf3ff;
+      border-radius: 10px;
+      padding: 11px 12px;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+
+    button:hover { background: #2a3848; }
+
+    main {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      width: 100%;
+      height: 100vh;
+      overflow: hidden;
+      background: #000000;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .error {
+      position: absolute;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 32px;
+      text-align: center;
+      color: #eaf3ff;
+      background: #000000;
+      font-weight: 700;
+      line-height: 1.7;
+    }
+
+    .value {
+      float: right;
+      opacity: 0.7;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .note {
+      font-size: 11px;
+      opacity: 0.7;
+      line-height: 1.5;
+      margin-top: 10px;
+      padding-bottom: 24px;
+    }
+  </style>
+</head>
+
+<body>
+  <aside>
+    <h1>海の波 WebGPU</h1>
+    <p>
+      海面のうねりと白波を WebGPU で生成します。<br>
+      静止画のままでも流体感が出るよう、海面の高さ場から波形を作ります。
+    </p>
+
+    <label>
+      うねり数
+      <span class="value" id="symmetryValue"></span>
+      <input id="symmetry" type="range" min="2" max="100" step="1" value="16">
+    </label>
+
+    <label>
+      波の周波数
+      <span class="value" id="frequencyValue"></span>
+      <input id="frequency" type="range" min="1" max="80" step="0.5" value="9">
+    </label>
+
+    <label>
+      波の振幅
+      <span class="value" id="amplitudeValue"></span>
+      <input id="amplitude" type="range" min="0" max="2" step="0.01" value="0.82">
+    </label>
+
+    <label>
+      ゆらぎ
+      <span class="value" id="distortValue"></span>
+      <input id="distort" type="range" min="0" max="2" step="0.01" value="0.72">
+    </label>
+
+    <label>
+      シャープネス
+      <span class="value" id="sharpnessValue"></span>
+      <input id="sharpness" type="range" min="0" max="1" step="0.01" value="0.58">
+    </label>
+
+    <label>
+      横流れ
+      <span class="value" id="staggerValue"></span>
+      <input id="stagger" type="range" min="0" max="2" step="0.01" value="0.65">
+    </label>
+
+    <label>
+      海の色
+      <input id="waveColor" type="color" value="#2d5c74">
+    </label>
+
+    <label>
+      空の色
+      <input id="bgColor" type="color" value="#dcebed">
+    </label>
+
+    <label>
+      白波の切れ
+      <span class="value" id="dryBrushValue"></span>
+      <input id="dryBrush" type="range" min="0" max="1" step="0.01" value="0.34">
+    </label>
+
+    <label>
+      泡の広がり
+      <span class="value" id="bleedValue"></span>
+      <input id="bleed" type="range" min="0" max="1" step="0.01" value="0.42">
+    </label>
+
+    <label>
+      うねりの長さ
+      <span class="value" id="gapLengthValue"></span>
+      <input id="gapLength" type="range" min="0" max="1" step="0.01" value="0.62">
+    </label>
+
+    <label>
+      泡だまり
+      <span class="value" id="poolingValue"></span>
+      <input id="pooling" type="range" min="0" max="1" step="0.01" value="0.66">
+    </label>
+
+    <label>
+      対象ごとの位相（度, カンマ区切り）
+      <input id="phaseList" type="text" value="0, 18, 36, 54" placeholder="例: 0, 15, 30, 45">
+    </label>
+
+    <label>
+      初期回転（度）
+      <span class="value" id="rotationValue"></span>
+      <input id="rotation" type="range" min="-180" max="180" step="1" value="0">
+    </label>
+
+    <div class="checkRow">
+      <input id="autoRotate" type="checkbox" checked>
+      <label for="autoRotate">自動回転</label>
+    </div>
+
+    <label>
+      回転スピード（度/秒）
+      <span class="value" id="rotationSpeedValue"></span>
+      <input id="rotationSpeed" type="range" min="-720" max="720" step="1" value="12">
+    </label>
+
+    <label>
+      リフレッシュレート（FPS）
+      <span class="value" id="refreshRateValue"></span>
+      <input id="refreshRate" type="range" min="1" max="60" step="1" value="30">
+    </label>
+
+    <button id="reroll">模様を再生成</button>
+    <button id="savePng">中心位置を1:1でPNG保存</button>
+
+    <div class="note">
+      海面模様をセクターで区切って、点対称に配置します。<br>
+      うねり数で対象数を指定できます。<br>
+      位相リストは先頭から対象に割り当てられ、未指定分は0度になります。<br>
+      横流れは海面の流向のクセ、うねりの長さは大きな波の周期感です。<br>
+      白波の切れ・泡の広がり・泡だまりで砕波の表情を調整できます。<br>
+      PNG保存では、画面中央を基準に正方形で切り抜いて保存します。
+    </div>
+  </aside>
+
+  <main>
+    <canvas id="canvas"></canvas>
+    <div class="error" id="error">
+      このブラウザでは WebGPU が使えません。<br>
+      Chrome / Edge の最新版で開いてください。
+    </div>
+  </main>
+
+  <script type="module">
+    const canvas = document.getElementById('canvas');
+    const error = document.getElementById('error');
+
+    const controlIds = [
+      'symmetry',
+      'frequency',
+      'amplitude',
+      'distort',
+      'sharpness',
+      'dryBrush',
+      'bleed',
+      'gapLength',
+      'pooling',
+      'stagger',
+      'rotation',
+      'rotationSpeed',
+      'refreshRate',
+    ];
+
+    const controls = Object.fromEntries(
+      controlIds.map((id) => [id, document.getElementById(id)])
+    );
+
+    const valueEls = Object.fromEntries(
+      controlIds.map((id) => [id, document.getElementById(`${id}Value`)])
+    );
+
+    const autoRotateEl = document.getElementById('autoRotate');
+    const phaseListEl = document.getElementById('phaseList');
+    const waveColorEl = document.getElementById('waveColor');
+    const bgColorEl = document.getElementById('bgColor');
+    const rerollButton = document.getElementById('reroll');
+    const savePngButton = document.getElementById('savePng');
+
+    const MAX_TARGETS = 100;
+
+    function hexToRgb(hex) {
+      const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      if (!m) return { r: 1, g: 1, b: 1 };
+      return {
+        r: parseInt(m[1], 16) / 255,
+        g: parseInt(m[2], 16) / 255,
+        b: parseInt(m[3], 16) / 255,
+      };
+    }
+
+    function parsePhaseList(symmetry) {
+      const raw = phaseListEl.value
+        .split(',')
+        .map((s) => Number(s.trim()))
+        .filter((v) => Number.isFinite(v));
+
+      const phases = new Float32Array(MAX_TARGETS);
+      const n = Math.min(MAX_TARGETS, Math.max(2, Math.round(symmetry)));
+
+      for (let i = 0; i < n; i += 1) {
+        const deg = raw[i] ?? 0;
+        phases[i] = deg * Math.PI / 180;
+      }
+
+      return phases;
+    }
+
+    function readRangeNumber(id, fallback) {
+      const v = Number(controls[id].value);
+      return Number.isFinite(v) ? v : fallback;
+    }
+
+    function readParams() {
+      return {
+        symmetry: readRangeNumber('symmetry', 16),
+        frequency: readRangeNumber('frequency', 9),
+        amplitude: readRangeNumber('amplitude', 0.82),
+        distort: readRangeNumber('distort', 0.72),
+        sharpness: readRangeNumber('sharpness', 0.58),
+        dryBrush: readRangeNumber('dryBrush', 0.34),
+        bleed: readRangeNumber('bleed', 0.42),
+        gapLength: readRangeNumber('gapLength', 0.62),
+        pooling: readRangeNumber('pooling', 0.66),
+        stagger: readRangeNumber('stagger', 0.65),
+        rotation: readRangeNumber('rotation', 0),
+        rotationSpeed: readRangeNumber('rotationSpeed', 12),
+        refreshRate: readRangeNumber('refreshRate', 30),
+        autoRotate: autoRotateEl.checked,
+        waveColor: hexToRgb(waveColorEl.value),
+        bgColor: hexToRgb(bgColorEl.value),
+      };
+    }
+
+    function syncLabels() {
+      const params = readParams();
+
+      valueEls.symmetry.textContent = String(params.symmetry);
+      valueEls.frequency.textContent = params.frequency.toFixed(1);
+      valueEls.amplitude.textContent = params.amplitude.toFixed(2);
+      valueEls.distort.textContent = params.distort.toFixed(2);
+      valueEls.sharpness.textContent = params.sharpness.toFixed(2);
+      valueEls.dryBrush.textContent = params.dryBrush.toFixed(2);
+      valueEls.bleed.textContent = params.bleed.toFixed(2);
+      valueEls.gapLength.textContent = params.gapLength.toFixed(2);
+      valueEls.pooling.textContent = params.pooling.toFixed(2);
+      valueEls.stagger.textContent = params.stagger.toFixed(2);
+      valueEls.rotation.textContent = `${Math.round(params.rotation)}°`;
+      valueEls.rotationSpeed.textContent = `${Math.round(params.rotationSpeed)}°/s`;
+      valueEls.refreshRate.textContent = `${Math.round(params.refreshRate)} FPS`;
+    }
+
+    const STORAGE_KEY = 'oceanWave_settings_v4';
+
+    function saveSettings() {
+      const data = {};
+      for (const id of controlIds) {
+        data[id] = controls[id].value;
+      }
+      data.autoRotate = autoRotateEl.checked;
+      data.phaseList = phaseListEl.value;
+      data.waveColor = waveColorEl.value;
+      data.bgColor = bgColorEl.value;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (_) {
+        // localStorage が無効な環境では無視
+      }
+    }
+
+    function loadSettings() {
+      let data;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        data = JSON.parse(raw);
+      } catch (_) {
+        return;
+      }
+      for (const id of controlIds) {
+        if (data[id] != null) {
+          controls[id].value = data[id];
+        }
+      }
+      if (data.autoRotate != null) autoRotateEl.checked = data.autoRotate;
+      if (data.phaseList != null) phaseListEl.value = data.phaseList;
+      if (data.waveColor != null) {
+        waveColorEl.value = data.waveColor;
+      }
+      if (data.bgColor != null) {
+        bgColorEl.value = data.bgColor;
+      }
+    }
+
+    loadSettings();
+
+    let seed = Math.floor(Math.random() * 1_000_000_000);
+    let spinOffsetDeg = 0;
+    let animationFrameId = null;
+    let lastTickMs = 0;
+    let lastRenderMs = 0;
+
+    function getSquareCropRect(width, height) {
+      const size = Math.min(width, height);
+      const centerX = width * 0.5;
+      const centerPixelY = height * 0.5;
+      const maxSx = Math.max(0, width - size);
+      const maxSy = Math.max(0, height - size);
+      const sx = Math.round(Math.min(Math.max(centerX - size * 0.5, 0), maxSx));
+      const sy = Math.round(Math.min(Math.max(centerPixelY - size * 0.5, 0), maxSy));
+
+      return { sx, sy, size };
+    }
+
+    function runSelfTests() {
+      console.assert(controls.frequency !== null, 'frequency スライダーが存在するべきです');
+      console.assert(controls.amplitude !== null, 'amplitude スライダーが存在するべきです');
+      console.assert(controls.distort !== null, 'distort スライダーが存在するべきです');
+      console.assert(controls.sharpness !== null, 'sharpness スライダーが存在するべきです');
+      console.assert(controls.gapLength !== null, 'gapLength スライダーが存在するべきです');
+      console.assert(controls.pooling !== null, 'pooling スライダーが存在するべきです');
+      console.assert(controls.rotationSpeed !== null, 'rotationSpeed スライダーが存在するべきです');
+      console.assert(controls.refreshRate !== null, 'refreshRate スライダーが存在するべきです');
+      console.assert(parsePhaseList(4).length === MAX_TARGETS, 'phase 配列サイズは MAX_TARGETS であるべきです');
+      console.assert(getSquareCropRect(800, 600).size === 600, '横長画面では短辺で切り抜くべきです');
+      console.assert(getSquareCropRect(800, 600).sx === 100, '切り抜きXは中央寄せであるべきです');
+      console.assert(getSquareCropRect(800, 600).sy === 0, '切り抜きYは中央寄せであるべきです');
+      const c = hexToRgb('#ffffff');
+      console.assert(c.r === 1 && c.g === 1 && c.b === 1, 'hexToRgb(#ffffff) は (1,1,1) であるべきです');
+      console.info('Self tests passed');
+    }
+
+    async function main() {
+      if (!navigator.gpu) {
+        error.style.display = 'grid';
+        return;
+      }
+
+      const adapter = await navigator.gpu.requestAdapter();
+
+      if (!adapter) {
+        error.textContent = 'WebGPU アダプタを取得できませんでした。';
+        error.style.display = 'grid';
+        return;
+      }
+
+      const device = await adapter.requestDevice();
+      const context = canvas.getContext('webgpu');
+      const format = navigator.gpu.getPreferredCanvasFormat();
+
+      context.configure({
+        device,
+        format,
+        alphaMode: 'opaque',
+      });
+
+      // 96 bytes (24 floats) 確保。WGSL Uniforms 構造体サイズに合わせる。
+      const uniformBuffer = device.createBuffer({
+        size: 96,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      const phaseBuffer = device.createBuffer({
+        size: MAX_TARGETS * 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      });
+
+      const waveShader = device.createShaderModule({
+        code: /* wgsl */`
+struct Uniforms {
+  resolution: vec2f,
+  symmetry: f32,
+  frequency: f32,
+
+  amplitude: f32,
+  distort: f32,
+  sharpness: f32,
+  stagger: f32,
+
+  rotation: f32,
+  seed: f32,
+  dryBrush: f32,
+
+  bleed: f32,
+  gapLength: f32,
+  pooling: f32,
+  pad0: f32,
+
+  waveColor: vec3f,
+  pad3: f32,
+
+  bgColor: vec3f,
+  pad4: f32,
+};
+
+@group(0) @binding(0) var<uniform> u: Uniforms;
+@group(0) @binding(1) var<storage, read> phases: array<f32>;
+
+fn hash(p: vec2f) -> f32 {
+  let h = dot(p, vec2f(127.1, 311.7));
+  return fract(sin(h) * 43758.5453123);
+}
+
+fn noise(p: vec2f) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+
+  let a = hash(i);
+  let b = hash(i + vec2f(1.0, 0.0));
+  let c = hash(i + vec2f(0.0, 1.0));
+  let d = hash(i + vec2f(1.0, 1.0));
+
+  let w = f * f * (3.0 - 2.0 * f);
+  return mix(mix(a, b, w.x), mix(c, d, w.x), w.y);
+}
+
+fn fbm(p0: vec2f) -> f32 {
+  var p = p0;
+  var amplitude = 0.5;
+  var value = 0.0;
+
+  for (var i = 0; i < 5; i = i + 1) {
+    value += amplitude * noise(p);
+    p = mat2x2f(1.62, 1.11, -1.11, 1.62) * p;
+    amplitude *= 0.52;
+  }
+
+  return value;
+}
+
+fn seaHeight(p0: vec2f) -> f32 {
+  let seedOffset = vec2f(u.seed * 0.000001, u.seed * 0.0000007);
+  var p = p0;
+
+  let flowA = fbm(p * vec2f(0.85, 0.42) + seedOffset);
+  let flowB = fbm((p + vec2f(3.4, -2.1)).yx * vec2f(0.55, 1.25) - seedOffset * 1.7);
+  let flowC = fbm(p * vec2f(1.8, 0.18) + seedOffset * 2.3);
+
+  let sideDrift = (flowA - 0.5) * u.distort * 0.75 + (flowB - 0.5) * u.stagger * 0.22;
+  let verticalWarp = (flowC - 0.5) * u.distort * 0.32;
+  p += vec2f(sideDrift, verticalWarp);
+
+  let layerCount = max(2.0, u.symmetry) * 0.06;
+  let longSwell = sin(p.x * (u.frequency * 0.72) + p.y * 2.4 + flowA * 4.2);
+  let diagonalSwell = sin(p.x * (u.frequency * 0.36 + layerCount) - p.y * 3.6 + flowB * 4.7 + 1.4);
+  let chop = sin(p.x * (u.frequency * 1.35) + p.y * 7.2 + flowC * 5.3);
+
+  let horizonEnvelope = mix(0.42, 1.12, smoothstep(-1.1, 0.9, p.y));
+  return u.amplitude * horizonEnvelope * (0.62 * longSwell + 0.28 * diagonalSwell) + 0.1 * chop;
+}
+
+@vertex
+fn vs(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4f {
+  let positions = array<vec2f, 3>(
+    vec2f(-1.0, -3.0),
+    vec2f( 3.0,  1.0),
+    vec2f(-1.0,  1.0)
+  );
+
+  return vec4f(positions[vertexIndex], 0.0, 1.0);
+}
+
+@fragment
+fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
+  let tau = 6.28318530718;
+  let pi = 3.14159265359;
+  let minResolution = min(u.resolution.x, u.resolution.y);
+  var uv = (position.xy * 2.0 - u.resolution) / minResolution;
+  uv.y = -uv.y;
+
+  let c = cos(u.rotation);
+  let s = sin(u.rotation);
+  let rotatedUv = mat2x2f(c, -s, s, c) * uv;
+
+  let radius = length(rotatedUv);
+  let rawAngle = atan2(rotatedUv.y, rotatedUv.x);
+
+  let symmetry = max(2.0, u.symmetry);
+  let sectorAngle = tau / symmetry;
+  let wrappedAngle = fract((rawAngle + pi) / tau) * tau;
+  let sectorIndexF = floor(wrappedAngle / sectorAngle);
+  let sectorIndex = min(u32(sectorIndexF), u32(symmetry - 1.0));
+  let mirroredIndex = min(sectorIndexF, symmetry - sectorIndexF);
+  let targetCount = max(2.0, u.symmetry);
+  let phaseOffset = phases[sectorIndex];
+  let foldedAngle = abs(
+    fract((rawAngle + sectorAngle * 0.5) / sectorAngle) * sectorAngle - sectorAngle * 0.5
+  );
+
+  let folded = vec2f(cos(foldedAngle), sin(foldedAngle)) * radius;
+  let radialMask = 1.0 - smoothstep(0.88, 1.12, radius);
+  let radialT = clamp(radius, 0.0, 1.0);
+
+  // Cloud と同様にセクターを折り返した座標へ波を投影して点対称配置する。
+  let seaUv = vec2f(
+    folded.x * (6.2 + u.frequency * 0.65) + (phaseOffset + mirroredIndex * u.stagger * 0.35),
+    (folded.y + radius * 0.45) * (2.2 + targetCount * 0.12) - 1.15
+  );
+  let eps = 0.012;
+
+  let h = seaHeight(seaUv);
+  let hx = seaHeight(seaUv + vec2f(eps, 0.0)) - h;
+  let hy = seaHeight(seaUv + vec2f(0.0, eps)) - h;
+
+  let normal = normalize(vec3f(-hx * 7.0, 1.0, -hy * 9.0));
+  let lightDir = normalize(vec3f(-0.35, 0.9, 0.25));
+  let shade = clamp(dot(normal, lightDir), 0.0, 1.0);
+
+  let seedOffset = vec2f(u.seed * 0.000001, u.seed * 0.0000007);
+  let foamNoise = fbm(seaUv * vec2f(0.9, 2.2) + seedOffset * 2.5);
+  let sprayNoise = fbm(seaUv * vec2f(3.0, 1.1) - seedOffset * 3.4);
+  let horizon = smoothstep(-1.1, 1.0, seaUv.y);
+
+  let crestBase = smoothstep(0.10 - u.bleed * 0.06, 0.42 + u.bleed * 0.12, h + hy * 2.8 + shade * 0.12);
+  let crestSharp = pow(clamp(crestBase, 0.0, 1.0), mix(2.2, 8.5, clamp(u.sharpness, 0.0, 1.0)));
+
+  let whitecapCuts = smoothstep(
+    mix(0.18, 0.58, clamp(u.dryBrush, 0.0, 1.0)) - 0.1,
+    mix(0.18, 0.58, clamp(u.dryBrush, 0.0, 1.0)) + 0.1,
+    foamNoise
+  );
+
+  let longTrailNoise = fbm(vec2f(seaUv.x * 0.42, seaUv.y * 1.7) + seedOffset * 1.8);
+  let trailKeep = smoothstep(
+    mix(0.24, 0.74, clamp(u.gapLength, 0.0, 1.0)) - 0.08,
+    mix(0.24, 0.74, clamp(u.gapLength, 0.0, 1.0)) + 0.08,
+    longTrailNoise
+  );
+
+  let foamLine = crestSharp * whitecapCuts * trailKeep;
+  let foamEdge = 1.0 - abs(trailKeep * 2.0 - 1.0);
+  let foamPools = pow(foamEdge, 1.4) * crestSharp * (0.14 + 0.48 * clamp(u.pooling, 0.0, 1.0));
+  let foamMist = smoothstep(0.52, 0.95, sprayNoise) * crestBase * 0.18 * u.bleed;
+
+  let depth = clamp(0.35 + horizon * 0.65 - h * 0.08, 0.0, 1.0);
+  let deepSea = u.waveColor * (0.42 + 0.45 * shade);
+  let lightSea = mix(u.bgColor, u.waveColor, 0.72) * (0.88 + 0.18 * shade);
+  let waterColor = mix(lightSea, deepSea, depth);
+
+  let skyHaze = mix(u.bgColor * 1.02, waterColor, smoothstep(-0.45, 0.18, seaUv.y));
+  let foamColor = mix(vec3f(0.94, 0.97, 0.98), u.bgColor, 0.18);
+
+  let foam = clamp((foamLine + foamPools + foamMist) * radialMask, 0.0, 1.0);
+  var color = mix(skyHaze, waterColor, smoothstep(-0.1, 0.35, seaUv.y));
+  color = mix(u.bgColor, color, radialMask);
+  color = mix(color, foamColor, foam);
+
+  return vec4f(color, 1.0);
+}
+`,
+      });
+
+      const bindGroupLayout = device.createBindGroupLayout({
+        entries: [
+          {
+            binding: 0,
+            visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+            buffer: { type: 'uniform' },
+          },
+          {
+            binding: 1,
+            visibility: GPUShaderStage.FRAGMENT,
+            buffer: { type: 'read-only-storage' },
+          },
+        ],
+      });
+
+      const bindGroup = device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          { binding: 0, resource: { buffer: uniformBuffer } },
+          { binding: 1, resource: { buffer: phaseBuffer } },
+        ],
+      });
+
+      const pipelineLayout = device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout],
+      });
+
+      const wavePipeline = device.createRenderPipeline({
+        layout: pipelineLayout,
+        vertex: { module: waveShader, entryPoint: 'vs' },
+        fragment: { module: waveShader, entryPoint: 'fs', targets: [{ format }] },
+        primitive: { topology: 'triangle-list' },
+      });
+
+      const savePipeline = device.createRenderPipeline({
+        layout: pipelineLayout,
+        vertex: { module: waveShader, entryPoint: 'vs' },
+        fragment: { module: waveShader, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
+        primitive: { topology: 'triangle-list' },
+      });
+
+      function resize() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+        const height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+      }
+
+      function getCurrentRotationDeg() {
+        const params = readParams();
+        return params.rotation + spinOffsetDeg;
+      }
+
+      function updateUniforms() {
+        const params = readParams();
+        const rotationRad = getCurrentRotationDeg() * Math.PI / 180;
+
+        // レイアウト (16byte アラインに合わせる):
+        // [0..1]  resolution.xy
+        // [2]     symmetry
+        // [3]     frequency
+        // [4]     amplitude
+        // [5]     distort
+        // [6]     sharpness
+        // [7]     stagger
+        // [8]     pad
+        // [9]     rotation
+        // [10]    seed
+        // [11]    dryBrush
+        // [12]    bleed
+        // [13]    gapLength
+        // [14]    pooling
+        // [15]    pad
+        // [16..18] waveColor.rgb, [19] pad
+        // [20..22] bgColor.rgb, [23] pad
+        const data = new Float32Array(24);
+        data[0] = canvas.width;
+        data[1] = canvas.height;
+        data[2] = params.symmetry;
+        data[3] = params.frequency;
+        data[4] = params.amplitude;
+        data[5] = params.distort;
+        data[6] = params.sharpness;
+        data[7] = params.stagger;
+        data[8] = 0;
+        data[9] = rotationRad;
+        data[10] = seed;
+        data[11] = params.dryBrush;
+        data[12] = params.bleed;
+        data[13] = params.gapLength;
+        data[14] = params.pooling;
+        data[15] = 0;
+        data[16] = params.waveColor.r;
+        data[17] = params.waveColor.g;
+        data[18] = params.waveColor.b;
+        data[19] = 0;
+        data[20] = params.bgColor.r;
+        data[21] = params.bgColor.g;
+        data[22] = params.bgColor.b;
+        data[23] = 0;
+
+        device.queue.writeBuffer(uniformBuffer, 0, data);
+        device.queue.writeBuffer(phaseBuffer, 0, parsePhaseList(params.symmetry));
+      }
+
+      function render() {
+        resize();
+        updateUniforms();
+
+        const view = context.getCurrentTexture().createView();
+        const encoder = device.createCommandEncoder();
+
+        const pass = encoder.beginRenderPass({
+          colorAttachments: [
+            {
+              view,
+              clearValue: { r: 0.863, g: 0.922, b: 0.929, a: 1.0 },
+              loadOp: 'clear',
+              storeOp: 'store',
+            },
+          ],
+        });
+
+        pass.setBindGroup(0, bindGroup);
+        pass.setPipeline(wavePipeline);
+        pass.draw(3);
+        pass.end();
+
+        device.queue.submit([encoder.finish()]);
+      }
+
+      async function saveSquarePng() {
+        resize();
+        updateUniforms();
+
+        const params = readParams();
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const offTex = device.createTexture({
+          size: [w, h],
+          format: 'rgba8unorm',
+          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+        });
+
+        const bytesPerRow = Math.ceil(w * 4 / 256) * 256;
+        const readBuf = device.createBuffer({
+          size: bytesPerRow * h,
+          usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        });
+
+        const encoder = device.createCommandEncoder();
+
+        const pass = encoder.beginRenderPass({
+          colorAttachments: [{
+            view: offTex.createView(),
+            clearValue: { r: 0.863, g: 0.922, b: 0.929, a: 1.0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          }],
+        });
+        pass.setBindGroup(0, bindGroup);
+        pass.setPipeline(savePipeline);
+        pass.draw(3);
+        pass.end();
+
+        encoder.copyTextureToBuffer(
+          { texture: offTex },
+          { buffer: readBuf, bytesPerRow },
+          [w, h],
+        );
+        device.queue.submit([encoder.finish()]);
+
+        await readBuf.mapAsync(GPUMapMode.READ);
+        const raw = new Uint8Array(readBuf.getMappedRange());
+
+        const { sx, sy, size } = getSquareCropRect(w, h);
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = size;
+        exportCanvas.height = size;
+
+        const exportContext = exportCanvas.getContext('2d');
+        if (!exportContext) {
+          throw new Error('PNG保存用の2Dコンテキストを取得できませんでした。');
+        }
+
+        const imgData = exportContext.createImageData(size, size);
+        for (let row = 0; row < size; row++) {
+          for (let col = 0; col < size; col++) {
+            const src = (sy + row) * bytesPerRow + (sx + col) * 4;
+            const dst = (row * size + col) * 4;
+            imgData.data[dst]     = raw[src];
+            imgData.data[dst + 1] = raw[src + 1];
+            imgData.data[dst + 2] = raw[src + 2];
+            imgData.data[dst + 3] = raw[src + 3];
+          }
+        }
+
+        readBuf.unmap();
+        readBuf.destroy();
+        offTex.destroy();
+
+        exportContext.putImageData(imgData, 0, 0);
+
+        const blob = await new Promise((resolve, reject) => {
+          exportCanvas.toBlob((pngBlob) => {
+            if (pngBlob) {
+              resolve(pngBlob);
+              return;
+            }
+            reject(new Error('PNGの生成に失敗しました。'));
+          }, 'image/png');
+        });
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        link.href = url;
+        link.download = `sym-wave-square-${timestamp}.png`;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+
+      for (const input of Object.values(controls)) {
+        input.addEventListener('input', () => {
+          syncLabels();
+          saveSettings();
+          render();
+        });
+      }
+
+      autoRotateEl.addEventListener('change', () => {
+        syncLabels();
+        saveSettings();
+        render();
+      });
+
+      phaseListEl.addEventListener('input', () => {
+        saveSettings();
+        render();
+      });
+
+      waveColorEl.addEventListener('input', () => {
+        saveSettings();
+        render();
+      });
+
+      bgColorEl.addEventListener('input', () => {
+        saveSettings();
+        render();
+      });
+
+      rerollButton.addEventListener('click', () => {
+        seed = Math.floor(Math.random() * 1_000_000_000);
+        render();
+      });
+
+      savePngButton.addEventListener('click', async () => {
+        try {
+          await saveSquarePng();
+        } catch (err) {
+          console.error(err);
+          error.textContent = `PNG保存でエラーが発生しました: ${err.message}`;
+          error.style.display = 'grid';
+        }
+      });
+
+      function animationLoop(nowMs) {
+        if (lastTickMs === 0) lastTickMs = nowMs;
+        if (lastRenderMs === 0) lastRenderMs = nowMs;
+
+        const params = readParams();
+        const deltaMs = nowMs - lastTickMs;
+        lastTickMs = nowMs;
+
+        if (params.autoRotate) {
+          spinOffsetDeg += params.rotationSpeed * (deltaMs / 1000);
+        }
+
+        const safeFps = Math.max(1, Math.min(60, params.refreshRate));
+        const frameIntervalMs = 1000 / safeFps;
+        if (nowMs - lastRenderMs >= frameIntervalMs) {
+          render();
+          lastRenderMs = nowMs;
+        }
+
+        animationFrameId = requestAnimationFrame(animationLoop);
+      }
+
+      window.addEventListener('resize', render);
+
+      runSelfTests();
+      resize();
+      syncLabels();
+      render();
+
+      animationFrameId = requestAnimationFrame(animationLoop);
+
+      window.addEventListener('beforeunload', () => {
+        if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+      });
+    }
+
+    main().catch((err) => {
+      console.error(err);
+      error.textContent = `WebGPU初期化でエラーが発生しました: ${err.message}`;
+      error.style.display = 'grid';
+    });
+  </script>
+</body>
+</html>

@@ -20,6 +20,7 @@ export type GenerateSettings = {
   startSecond: number;
   frameCount: number;
   frameInterval: number;
+  foldbackCount: number;
   directionDeg: number;
   sliceLength: number;
   outputRadius: number;
@@ -31,6 +32,12 @@ export type ExtractedFrame = {
   bitmap: ImageBitmap;
 };
 
+export type RotationSettings = {
+  isEnabled: boolean;
+  refreshRateFps: number;
+  rotationSpeedDegPerSec: number;
+};
+
 export type AppState = {
   videoFile: File | null;
   videoUrl: string | null;
@@ -40,4 +47,8 @@ export type AppState = {
   frames: ExtractedFrame[];
   isGenerating: boolean;
   errorMessage: string | null;
+  rotationSettings: RotationSettings;
+  currentRotationDeg: number;
+  isAnimating: boolean;
+  lastFrameTime: number;
 };

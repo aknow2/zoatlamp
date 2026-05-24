@@ -2,8 +2,17 @@ import type { AppState, GenerateSettings, VideoMeta } from './types.ts';
 
 export const FRAME_COUNT_WARNING_MESSAGE = 'フレーム数は360以下を推奨します。';
 
+export function getEffectiveExtractionFrameCount(settings: GenerateSettings): number {
+  const foldbackCount = Math.max(0, Math.floor(settings.foldbackCount));
+  const segmentCount = foldbackCount + 1;
+  return Math.ceil(settings.frameCount / segmentCount);
+}
+
 export function getLastFrameTime(settings: GenerateSettings): number {
-  return settings.startSecond + (settings.frameCount - 1) * settings.frameInterval;
+  return (
+    settings.startSecond +
+    (getEffectiveExtractionFrameCount(settings) - 1) * settings.frameInterval
+  );
 }
 
 export function validateGenerateRequest(state: AppState): string | null {
@@ -24,6 +33,10 @@ export function validateSettings(
 ): string | null {
   if (settings.frameCount < 3) {
     return 'フレーム数は3以上にしてください。';
+  }
+
+  if (settings.foldbackCount < 0) {
+    return '折り返し回数は0以上にしてください。';
   }
 
   if (settings.frameInterval <= 0) {

@@ -53,17 +53,113 @@ export function drawInputGuide(canvas: HTMLCanvasElement, state: AppState): void
   ctx.restore();
 }
 
+// Temporary canvas for rendering the radial image before rotation is applied
+let radialImageCanvas: HTMLCanvasElement | null = null;
+
+function getSourceFrameIndex(
+  outputIndex: number,
+  outputFrameCount: number,
+  foldbackCount: number,
+): number {
+  const normalizedFoldbackCount = Math.max(0, Math.floor(foldbackCount));
+  const segmentCount = normalizedFoldbackCount + 1;
+  const segmentLength = Math.ceil(outputFrameCount / segmentCount);
+
+  if (segmentLength <= 0) {
+    return 0;
+  }
+
+  const segmentIndex = Math.floor(outputIndex / segmentLength);
+  const inSegmentIndex = outputIndex % segmentLength;
+  const isForward = segmentIndex % 2 === 0;
+
+  if (isForward) {
+    return inSegmentIndex;
+  }
+
+  return segmentLength - 1 - inSegmentIndex;
+}
+
 export function renderRadialImage(
   frames: ExtractedFrame[],
   samplePoint: Point,
   settings: GenerateSettings,
   outputCanvas: HTMLCanvasElement,
 ): void {
-  const frameCount = frames.length;
-  const radius = settings.outputRadius;
-  const size = radius * 2;
-  const centerX = radius;
-  const centerY = radius;
+  const outputFrameCount = settings.frameCount;
+  const virtualRadius = settings.sliceLength;
+  const outputRadius = settings.outputRadius;
+  const virtualSize = virtualRadius * 2;
+  const outputSize = outputRadius * 2;
+  const centerX = virtualRadius;
+  const centerY = virtualRadius;
+
+  if (frames.length === 0) {
+    throw new Error('No frames to render');
+  }
+
+  // Create or reuse temporary canvas for the base radial image (virtual size)
+  if (!radialImageCanvas) {
+    radialImageCanvas = document.createElement('canvas');
+  }
+  radialImageCanvas.width = virtualSize;
+  radialImageCanvas.height = virtualSize;
+
+  const tempCtx = radialImageCanvas.getContext('2d');
+  if (!tempCtx) {
+    throw new Error('Failed to get temporary canvas context');
+  }
+
+  tempCtx.clearRect(0, 0, virtualSize, virtualSize);
+
+  const apexAngleRad = (Math.PI * 2) / outputFrameCount;
+  const baseHalfWidth = Math.tan(apexAngleRad / 2) * virtualRadius;
+
+  for (let outputIndex = 0; outputIndex < outputFrameCount; outputIndex++) {
+    const sourceIndex = getSourceFrameIndex(
+      outputIndex,
+      outputFrameCount,
+      settings.foldbackCount,
+    );
+    const frame = frames[Math.max(0, Math.min(sourceIndex, frames.length - 1))];
+    const rotation = outputIndex * apexAngleRad;
+
+    tempCtx.save();
+    tempCtx.translate(centerX, centerY);
+    tempCtx.rotate(rotation);
+
+    tempCtx.beginPath();
+    tempCtx.moveTo(0, 0);
+    tempCtx.lineTo(-baseHalfWidth, -virtualRadius);
+    tempCtx.lineTo(baseHalfWidth, -virtualRadius);
+    tempCtx.closePath();
+    tempCtx.clip();
+
+    tempCtx.rotate(-toRad(settings.directionDeg) - Math.PI / 2);
+    tempCtx.drawImage(frame.bitmap, -samplePoint.x, -samplePoint.y);
+    tempCtx.restore();
+  }
+
+  // Draw the virtual-size radial image to output canvas, scaling to output radius
+  const ctx = outputCanvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Failed to get output canvas context');
+  }
+
+  outputCanvas.width = outputSize;
+  outputCanvas.height = outputSize;
+  ctx.clearRect(0, 0, outputSize, outputSize);
+  ctx.drawImage(radialImageCanvas, 0, 0, virtualSize, virtualSize, 0, 0, outputSize, outputSize);
+}
+
+export function drawRotatedImage(
+  sourceCanvas: HTMLCanvasElement,
+  outputCanvas: HTMLCanvasElement,
+  rotationDeg: number,
+): void {
+  const size = sourceCanvas.width; // Assuming square canvas
+  const centerX = size / 2;
+  const centerY = size / 2;
 
   const ctx = outputCanvas.getContext('2d');
   if (!ctx) {
@@ -74,25 +170,9 @@ export function renderRadialImage(
   outputCanvas.height = size;
   ctx.clearRect(0, 0, size, size);
 
-  const apexAngleRad = (Math.PI * 2) / frameCount;
-  const baseHalfWidth = Math.tan(apexAngleRad / 2) * radius;
-
-  for (const frame of frames) {
-    const rotation = frame.index * apexAngleRad;
-
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.rotate(rotation);
-
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(-baseHalfWidth, -radius);
-    ctx.lineTo(baseHalfWidth, -radius);
-    ctx.closePath();
-    ctx.clip();
-
-    ctx.rotate(-toRad(settings.directionDeg) - Math.PI / 2);
-    ctx.drawImage(frame.bitmap, -samplePoint.x, -samplePoint.y);
-    ctx.restore();
-  }
+  ctx.save();
+  ctx.translate(centerX, centerY);
+  ctx.rotate(toRad(rotationDeg));
+  ctx.drawImage(sourceCanvas, -centerX, -centerY);
+  ctx.restore();
 }

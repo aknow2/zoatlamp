@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WebGPU Symmetric Ink Cloud</title>
+  <title>WebGPU Symmetric Waveform Mandala</title>
 
   <style>
     :root {
       color-scheme: dark;
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #000000;
-      color: #f3eadc;
+      color: #f4f0ff;
     }
 
     * { box-sizing: border-box; }
@@ -34,7 +34,7 @@
       max-height: 100vh;
       min-height: 0;
       padding: 18px;
-      background: rgba(20, 18, 16, 0.92);
+      background: rgba(10, 8, 18, 0.94);
       border-right: 1px solid rgba(255, 255, 255, 0.12);
       overflow-y: auto;
       overflow-x: hidden;
@@ -51,7 +51,7 @@
       margin: 0 0 18px;
       font-size: 12px;
       line-height: 1.6;
-      color: rgba(243, 234, 220, 0.72);
+      color: rgba(244, 240, 255, 0.72);
     }
 
     label {
@@ -59,7 +59,7 @@
       gap: 7px;
       margin: 14px 0;
       font-size: 12px;
-      color: rgba(243, 234, 220, 0.86);
+      color: rgba(244, 240, 255, 0.86);
     }
 
     input[type="range"] { width: 100%; }
@@ -70,7 +70,7 @@
       gap: 10px;
       margin: 16px 0 8px;
       font-size: 13px;
-      color: rgba(243, 234, 220, 0.92);
+      color: rgba(244, 240, 255, 0.92);
     }
 
     .checkRow label {
@@ -81,15 +81,15 @@
     button {
       width: 100%;
       border: 1px solid rgba(255, 255, 255, 0.16);
-      background: #2b2621;
-      color: #f3eadc;
+      background: #231c36;
+      color: #f4f0ff;
       border-radius: 10px;
       padding: 11px 12px;
       cursor: pointer;
       margin-top: 12px;
     }
 
-    button:hover { background: #373029; }
+    button:hover { background: #30264a; }
 
     main {
       position: relative;
@@ -114,7 +114,7 @@
       place-items: center;
       padding: 32px;
       text-align: center;
-      color: #f3eadc;
+      color: #f4f0ff;
       background: #000000;
       font-weight: 700;
       line-height: 1.7;
@@ -138,34 +138,46 @@
 
 <body>
   <aside>
-    <h1>点対称・墨雲 WebGPU</h1>
+    <h1>点対称・波形マンダラ WebGPU</h1>
     <p>
-      中心から放射状に広がる墨雲を WebGPU で生成します。<br>
-      模様自体は静止し、画像全体のみを回転させます。
+      一周ごとにランダム固定された波形を WebGPU で生成します。<br>
+      黒背景に白い波形だけを重ねて曼荼羅を作ります。
     </p>
 
     <label>
       対称数
       <span class="value" id="symmetryValue"></span>
-      <input id="symmetry" type="range" min="2" max="100" step="1" value="20">
+      <input id="symmetry" type="range" min="2" max="100" step="1" value="28">
     </label>
 
     <label>
-      雲の濃さ
+      波形間隔
       <span class="value" id="cloudValue"></span>
-      <input id="cloud" type="range" min="0" max="2" step="0.01" value="0.8">
+      <input id="cloud" type="range" min="0.018" max="0.100" step="0.001" value="0.042">
     </label>
 
     <label>
-      雲の渦
+      振幅倍率
       <span class="value" id="swirlValue"></span>
-      <input id="swirl" type="range" min="0" max="100" step="0.01" value="7">
+      <input id="swirl" type="range" min="0" max="2" step="0.01" value="1.00">
     </label>
 
     <label>
-      余白
+      線幅
       <span class="value" id="paperValue"></span>
-      <input id="paper" type="range" min="0" max="1" step="0.01" value="0.26">
+      <input id="paper" type="range" min="0.002" max="0.080" step="0.001" value="0.018">
+    </label>
+
+    <label>
+      破線量
+      <span class="value" id="bleedValue"></span>
+      <input id="bleed" type="range" min="0" max="1" step="0.01" value="0.24">
+    </label>
+
+    <label>
+      縦接続線量
+      <span class="value" id="goldInkValue"></span>
+      <input id="goldInk" type="range" min="0" max="1" step="0.01" value="0.34">
     </label>
 
     <label>
@@ -175,9 +187,15 @@
     </label>
 
     <label>
-      位相ずれ
+      セクター位相
       <span class="value" id="staggerValue"></span>
-      <input id="stagger" type="range" min="0" max="2" step="0.01" value="0.1">
+      <input id="stagger" type="range" min="0" max="2" step="0.01" value="0.18">
+    </label>
+
+    <label>
+      周波数ばらつき
+      <span class="value" id="foldCountValue"></span>
+      <input id="foldCount" type="range" min="1" max="12" step="1" value="5">
     </label>
 
     <label>
@@ -209,7 +227,11 @@
 
     <div class="note">
       中心Y位置はプラスにすると上へ、マイナスにすると下へ移動します。<br>
-      位相ずれは、対称セクターごとの模様のズレ量です。<br>
+      波形間隔は、同心円状に並ぶ波形同士の距離です。<br>
+      振幅倍率は、波形ごとにランダムで決まるベース振幅へ掛ける倍率です。<br>
+      破線量は波形の一部をランダムに欠けさせます。<br>
+      縦接続線量は、複数の周回を貫く白い接続線を増減します。<br>
+      波形種類とベース振幅は、模様を再生成するまで固定されます。<br>
       回転スピードは -720 ～ 720 deg/sec で設定できます。<br>
       マイナスにすると逆回転します。<br>
       PNG保存では、現在の中心位置を基準に正方形で切り抜いて保存します。
@@ -233,8 +255,11 @@
       'cloud',
       'swirl',
       'paper',
+      'bleed',
+      'goldInk',
       'centerY',
       'stagger',
+      'foldCount',
       'rotation',
       'rotationSpeed',
       'refreshRate',
@@ -259,8 +284,11 @@
         cloud: Number(controls.cloud.value),
         swirl: Number(controls.swirl.value),
         paper: Number(controls.paper.value),
+        bleed: Number(controls.bleed.value),
+        goldInk: Number(controls.goldInk.value),
         centerY: Number(controls.centerY.value),
         stagger: Number(controls.stagger.value),
+        foldCount: Number(controls.foldCount.value),
         rotation: Number(controls.rotation.value),
         rotationSpeed: Number(controls.rotationSpeed.value),
         refreshRate: Number(controls.refreshRate.value),
@@ -272,17 +300,20 @@
       const params = readParams();
 
       valueEls.symmetry.textContent = String(params.symmetry);
-      valueEls.cloud.textContent = params.cloud.toFixed(2);
+      valueEls.cloud.textContent = params.cloud.toFixed(3);
       valueEls.swirl.textContent = params.swirl.toFixed(2);
-      valueEls.paper.textContent = params.paper.toFixed(2);
+      valueEls.paper.textContent = params.paper.toFixed(3);
+      valueEls.bleed.textContent = params.bleed.toFixed(2);
+      valueEls.goldInk.textContent = params.goldInk.toFixed(2);
       valueEls.centerY.textContent = params.centerY.toFixed(2);
       valueEls.stagger.textContent = params.stagger.toFixed(2);
+      valueEls.foldCount.textContent = `${Math.round(params.foldCount)}`;
       valueEls.rotation.textContent = `${Math.round(params.rotation)}°`;
       valueEls.rotationSpeed.textContent = `${Math.round(params.rotationSpeed)}°/s`;
       valueEls.refreshRate.textContent = `${Math.round(params.refreshRate)} FPS`;
     }
 
-    const STORAGE_KEY = 'inkCloud_settings_v1';
+    const STORAGE_KEY = 'waveformMandala_settings_v2';
 
     function saveSettings() {
       const data = {};
@@ -297,13 +328,24 @@
       }
     }
 
+    function resetControlsToDefaults() {
+      for (const id of controlIds) {
+        controls[id].value = controls[id].defaultValue;
+      }
+      autoRotateEl.checked = autoRotateEl.defaultChecked;
+    }
+
     function loadSettings() {
       let data;
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return;
+        if (!raw) {
+          resetControlsToDefaults();
+          return;
+        }
         data = JSON.parse(raw);
       } catch (_) {
+        resetControlsToDefaults();
         return;
       }
       for (const id of controlIds) {
@@ -325,9 +367,12 @@
     let lastRenderMs = 0;
 
     function runSelfTests() {
-      console.assert(controls.symmetry.max === '60', '対称数の最大値は40であるべきです');
+      console.assert(controls.symmetry.max === '100', '対称数の最大値は100であるべきです');
       console.assert(controls.centerY !== null, 'centerY スライダーが存在するべきです');
+      console.assert(controls.bleed !== null, 'bleed スライダーが存在するべきです');
+      console.assert(controls.goldInk !== null, 'goldInk スライダーが存在するべきです');
       console.assert(controls.stagger !== null, 'stagger スライダーが存在するべきです');
+      console.assert(controls.foldCount !== null, 'foldCount スライダーが存在するべきです');
       console.assert(controls.rotation !== null, 'rotation スライダーが存在するべきです');
       console.assert(controls.rotationSpeed !== null, 'rotationSpeed スライダーが存在するべきです');
       console.assert(controls.refreshRate !== null, 'refreshRate スライダーが存在するべきです');
@@ -335,7 +380,10 @@
       console.assert(controls.rotationSpeed.max === '720', 'rotationSpeed の最大値は 720 であるべきです');
       console.assert(savePngButton !== null, 'savePng ボタンが存在するべきです');
       console.assert(typeof readParams().centerY === 'number', 'centerY は number であるべきです');
+      console.assert(typeof readParams().bleed === 'number', 'bleed は number であるべきです');
+      console.assert(typeof readParams().goldInk === 'number', 'goldInk は number であるべきです');
       console.assert(typeof readParams().stagger === 'number', 'stagger は number であるべきです');
+      console.assert(typeof readParams().foldCount === 'number', 'foldCount は number であるべきです');
       console.assert(getSquareCropRect(800, 600, 0).size === 600, '横長画面では短辺で切り抜くべきです');
       console.assert(getSquareCropRect(800, 600, 0).sx === 100, 'centerY=0 の切り抜きXは中央寄せであるべきです');
       console.assert(getSquareCropRect(800, 600, 0).sy === 0, 'centerY=0 の切り抜きYは中央寄せであるべきです');
@@ -395,12 +443,16 @@ struct Uniforms {
   cloud: f32,
   swirl: f32,
   paper: f32,
+  bleed: f32,
+  goldInk: f32,
   centerY: f32,
   stagger: f32,
+  foldCount: f32,
   rotation: f32,
   seed: f32,
   pad0: f32,
   pad1: f32,
+  pad2: f32,
 };
 
 @group(0) @binding(0) var<uniform> u: Uniforms;
@@ -435,6 +487,30 @@ fn fbm(p0: vec2f) -> f32 {
   }
 
   return value;
+}
+
+fn hash2(p: vec2f) -> vec2f {
+  let q = vec2f(
+    dot(p, vec2f(127.1, 311.7)),
+    dot(p, vec2f(269.5, 183.3))
+  );
+  return fract(sin(q) * 43758.5453123);
+}
+
+fn waveSaw(x: f32) -> f32 {
+  return fract(x) * 2.0 - 1.0;
+}
+
+fn waveTri(x: f32) -> f32 {
+  return 1.0 - abs(fract(x) * 2.0 - 1.0) * 2.0;
+}
+
+fn waveSquare(x: f32) -> f32 {
+  return select(-1.0, 1.0, fract(x) > 0.5);
+}
+
+fn lineMask(dist: f32, width: f32, softness: f32) -> f32 {
+  return 1.0 - smoothstep(width, width + softness, dist);
 }
 
 @vertex
@@ -480,7 +556,6 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let sectorIndex = floor(wrappedAngle / sectorAngle);
   let mirroredIndex = min(sectorIndex, symmetry - sectorIndex);
 
-  // 模様自体は時間変化させず、セクターごとに静的な位相差を与える。
   let phase = mirroredIndex * u.stagger;
   let phaseVec = vec2f(cos(phase), sin(phase));
 
@@ -488,39 +563,90 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
     fract((rawAngle + sectorAngle * 0.5) / sectorAngle) * sectorAngle - sectorAngle * 0.5
   );
 
-  let folded = vec2f(cos(foldedAngle), sin(foldedAngle)) * radius;
+  let foldCount = max(1.0, floor(u.foldCount + 0.5));
+  let microSectorAngle = sectorAngle / foldCount;
+  let foldedAngle2 = abs(
+    fract((rawAngle + microSectorAngle * 0.5) / microSectorAngle) * microSectorAngle - microSectorAngle * 0.5
+  );
+
+  let kaleidoBlend = 0.55 + 0.35 * smoothstep(1.0, 8.0, foldCount);
+  let blendAngle = mix(foldedAngle, foldedAngle2, kaleidoBlend);
+
+  let folded = vec2f(cos(blendAngle), sin(blendAngle)) * radius;
   let seedOffset = vec2f(u.seed * 0.000001, u.seed * 0.0000007);
 
-  let basePoint = folded * (2.1 + radius * 2.6);
+  let waveX = blendAngle / max(sectorAngle * 0.5, 0.0001);
+  let spacing = max(0.012, u.cloud);
+  let ringCoord = radius / spacing;
+  let ringIndex = floor(ringCoord);
+  let lane = fract(ringCoord);
+  let laneY = lane - 0.5;
+  let laneId = vec2f(ringIndex, floor(u.seed * 0.000013));
+  let laneSeed = hash(laneId);
+  let waveKind = floor(laneSeed * 6.0);
+  let phaseOffset = hash(laneId + vec2f(4.1, 9.7)) * 3.0 + mirroredIndex * u.stagger + dot(phaseVec, vec2f(0.09, 0.13));
+  let freqRand = hash(laneId + vec2f(12.3, 5.8));
+  let baseFreq = 1.0 + floor(freqRand * (2.0 + foldCount * 0.75));
+  let ampRand = hash(laneId + vec2f(8.2, 3.7));
+  let amplitude = clamp((0.10 + ampRand * 0.30) * u.swirl, 0.0, 0.46);
+  let widthRand = hash(laneId + vec2f(31.2, 14.6));
 
-  // 位相ずれはノイズ座標を少しずらして表現する。
-  // 時間は使わないため、模様が下へ流れることはない。
-  let phaseOffset1 = phaseVec * 0.20;
-  let phaseOffset2 = vec2f(phaseVec.y, -phaseVec.x) * 0.14;
+  let x = waveX + phaseOffset;
+  let sine = sin(tau * x * baseFreq);
+  let cosine = cos(tau * (x * baseFreq + laneSeed * 0.25));
+  let saw = waveSaw(x * baseFreq);
+  let tri = waveTri(x * baseFreq);
+  let square = waveSquare(x * baseFreq);
+  let stepped = floor((sin(tau * x * baseFreq) * 0.5 + 0.5) * 7.0) / 3.0 - 1.0;
 
-  let warp = fbm(basePoint * 1.05 + seedOffset + phaseOffset1) - 0.5;
+  var waveform = sine;
+  if (waveKind == 1.0) {
+    waveform = cosine;
+  } else if (waveKind == 2.0) {
+    waveform = saw;
+  } else if (waveKind == 3.0) {
+    waveform = tri;
+  } else if (waveKind == 4.0) {
+    waveform = square;
+  } else if (waveKind == 5.0) {
+    waveform = stepped;
+  }
 
-  let cloudPoint = basePoint
-    + vec2f(u.swirl * warp, -u.swirl * 0.18 * radius)
-    + phaseOffset2 * 0.35;
+  let detail = hash(laneId + vec2f(20.5, 2.2));
+  waveform += (detail - 0.5) * 0.10 * sin(tau * x * baseFreq * 3.0);
+  waveform = clamp(waveform, -1.0, 1.0);
 
-  var ink = fbm(cloudPoint * 2.2 + seedOffset + phaseOffset1);
-  ink += 0.58 * fbm(cloudPoint * 5.1 - seedOffset + phaseOffset2);
+  let dist = abs(laneY - waveform * amplitude);
+  let width = max(0.0015, u.paper * (0.45 + widthRand * 1.65));
+  let aa = fwidth(dist) * 1.8 + 0.002;
+  let mainLine = lineMask(dist, width, aa);
 
-  let radialRays = pow(abs(sin(foldedAngle * 5.5 + radius * 12.0 + warp * 2.0)), 5.0);
-  ink += radialRays * 0.24 * smoothstep(0.12, 0.95, radius);
+  let echoDist = abs(laneY - waveform * amplitude * 0.58);
+  let echoLine = lineMask(echoDist, width * 0.52, aa + 0.008) * 0.18;
+  let centerLine = lineMask(abs(laneY), width * 0.34, aa + 0.004) * 0.08;
+  let dashCount = 3.0 + floor(hash(laneId + vec2f(2.4, 17.8)) * 9.0);
+  let dashCoord = waveX * dashCount + hash(laneId + vec2f(5.8, 22.1)) * 2.0;
+  let dashCell = floor(dashCoord);
+  let dashLocal = fract(dashCoord);
+  let dashKeep = step(u.bleed * 0.78, hash(vec2f(dashCell, ringIndex) + seedOffset * 2.0));
+  let dashFeather = smoothstep(0.02, 0.14, dashLocal) * (1.0 - smoothstep(0.86, 0.98, dashLocal));
+  let dashMask = mix(1.0, dashKeep * dashFeather, u.bleed);
+  let radialGate = smoothstep(0.08, 0.20, radius);
+  let outerFade = 1.0 - smoothstep(0.98, 1.18, radius);
+  let waveLine = clamp(max(mainLine, max(echoLine, centerLine)), 0.0, 1.0) * dashMask;
 
-  let radialMask = 1.0 - smoothstep(0.82, 1.08, radius);
-  ink *= radialMask;
+  let connectorCount = 4.0 + u.goldInk * 28.0;
+  let connectorCoord = waveX * connectorCount + mirroredIndex * 0.37 + hash(vec2f(sectorIndex, floor(u.seed * 0.000019)));
+  let connectorIndex = floor(connectorCoord);
+  let connectorLocal = fract(connectorCoord);
+  let connectorDist = min(connectorLocal, 1.0 - connectorLocal);
+  let connectorGate = step(0.66 - u.goldInk * 0.38, hash(vec2f(connectorIndex, floor(radius / (spacing * 3.0))) + seedOffset * 4.0));
+  let connectorWidth = width * (0.35 + u.goldInk * 0.75);
+  let connectorLine = lineMask(connectorDist, connectorWidth, aa + 0.004) * connectorGate * u.goldInk;
+  let connectorBreak = step(0.16, hash(vec2f(connectorIndex, ringIndex) + vec2f(9.0, 4.0)));
+  let lineAmount = clamp(max(waveLine, connectorLine * connectorBreak), 0.0, 1.0) * radialGate * outerFade;
 
-  let inkMask = smoothstep(0.40 + u.paper * 0.25, 1.08, ink * u.cloud);
-
-  let paperColor = vec3f(0.0, 0.0, 0.0);
-  let inkColor = vec3f(1.0, 1.0, 1.0);
-
-  let edgeFade = 1.0 - smoothstep(0.95, 1.18, radius);
-  let mixAmount = clamp(inkMask * edgeFade, 0.0, 0.95);
-  let color = mix(paperColor, inkColor, mixAmount);
+  let color = vec3f(clamp(lineAmount, 0.0, 1.0));
 
   return vec4f(color, 1.0);
 }
@@ -588,10 +714,14 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
           params.cloud,
           params.swirl,
           params.paper,
+          params.bleed,
+          params.goldInk,
           params.centerY,
           params.stagger,
+          params.foldCount,
           rotationRad,
           seed,
+          0,
           0,
           0,
         ]);
@@ -714,7 +844,7 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         const link = document.createElement('a');
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         link.href = url;
-        link.download = `ink-cloud-square-${timestamp}.png`;
+        link.download = `waveform-mandala-square-${timestamp}.png`;
         link.click();
         URL.revokeObjectURL(url);
       }

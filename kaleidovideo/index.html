@@ -35,6 +35,11 @@
         </div>
 
         <div class="field">
+          <label for="foldbackCountInput">折り返し回数</label>
+          <input id="foldbackCountInput" type="number" min="0" step="1" value="0" />
+        </div>
+
+        <div class="field">
           <label for="directionDegInput">向き角度（度）</label>
           <input id="directionDegInput" type="number" step="1" value="-90" />
         </div>
@@ -65,6 +70,35 @@
         </div>
 
         <canvas id="outputCanvas"></canvas>
+      </section>
+
+      <!-- Rotation Controller Panel -->
+      <section class="rotation-panel" aria-label="回転コントローラー">
+        <h2>回転</h2>
+        
+        <div class="field">
+          <label for="rotationEnableInput">有効</label>
+          <input id="rotationEnableInput" type="checkbox" />
+        </div>
+
+        <div class="field">
+          <label for="refreshRateFpsInput">リフレッシュレート（FPS）</label>
+          <input id="refreshRateFpsInput" type="number" min="1" step="1" value="60" disabled />
+        </div>
+
+        <div class="field">
+          <label for="rotationSpeedInput">速度（度/秒）</label>
+          <input id="rotationSpeedInput" type="range" min="0" max="360" step="1" value="30" disabled />
+          <span id="rotationSpeedValue">30 deg/sec</span>
+        </div>
+
+        <div class="rotation-status">
+          <p>現在の角度: <span id="currentRotationDisplay">0°</span></p>
+        </div>
+
+        <div class="buttons">
+          <button id="resetRotationButton" type="button" disabled>リセット</button>
+        </div>
       </section>
     </main>
 

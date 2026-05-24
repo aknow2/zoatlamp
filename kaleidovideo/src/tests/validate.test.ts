@@ -32,6 +32,14 @@ function makeState(overrides: Partial<AppState> = {}): AppState {
     frames: [],
     isGenerating: false,
     errorMessage: null,
+    rotationSettings: {
+      isEnabled: false,
+      refreshRateFps: 60,
+      rotationSpeedDegPerSec: 30,
+    },
+    currentRotationDeg: 0,
+    isAnimating: false,
+    lastFrameTime: 0,
     ...overrides,
   };
 }
@@ -40,6 +48,22 @@ describe('validate', () => {
   it('calculates the last requested frame time', () => {
     expect(getLastFrameTime(makeSettings({ startSecond: 1, frameCount: 4, frameInterval: 0.25 })))
       .toBeCloseTo(1.75);
+  });
+
+  it('calculates the last requested frame time in foldback mode with half extraction', () => {
+    expect(
+      getLastFrameTime(
+        makeSettings({ startSecond: 1, frameCount: 60, frameInterval: 0.1, foldbackCount: 1 }),
+      ),
+    ).toBeCloseTo(3.9);
+  });
+
+  it('calculates the last requested frame time with two foldbacks', () => {
+    expect(
+      getLastFrameTime(
+        makeSettings({ startSecond: 1, frameCount: 60, frameInterval: 0.1, foldbackCount: 2 }),
+      ),
+    ).toBeCloseTo(2.9);
   });
 
   it('requires a video file', () => {

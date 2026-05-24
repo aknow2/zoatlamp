@@ -1,4 +1,5 @@
 import type { ExtractedFrame, GenerateSettings } from './types.ts';
+import { getEffectiveExtractionFrameCount } from './validate.ts';
 import { seekVideo } from './video.ts';
 
 export async function extractFrames(
@@ -15,8 +16,9 @@ export async function extractFrames(
   }
 
   const frames: ExtractedFrame[] = [];
+  const extractionFrameCount = getEffectiveExtractionFrameCount(settings);
 
-  for (let i = 0; i < settings.frameCount; i++) {
+  for (let i = 0; i < extractionFrameCount; i++) {
     const time = settings.startSecond + i * settings.frameInterval;
 
     await seekVideo(video, time);

@@ -26,10 +26,10 @@ header h1 {
   letter-spacing: 0.03em;
 }
 
-/* Two-column layout */
+/* Three-column layout */
 .layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px 1fr 280px;
   gap: 0;
   height: calc(100dvh - 49px);
   overflow: hidden;
@@ -72,6 +72,15 @@ header h1 {
 .field input[type="file"]:focus {
   outline: 2px solid #4a9eff;
   outline-offset: 1px;
+}
+
+.field input[type="range"] {
+  width: 100%;
+}
+
+#rotationSpeedValue {
+  font-size: 12px;
+  color: #aaa;
 }
 
 .error-message {
@@ -160,4 +169,57 @@ button:not(:disabled):hover {
   max-width: 100%;
   background: transparent;
   border: 1px solid #333;
+}
+
+/* Rotation Panel */
+.rotation-panel {
+  background: #222;
+  border-left: 1px solid #333;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rotation-panel h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e0e0e0;
+  margin: 0;
+}
+
+.field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.rotation-status {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 12px;
+  font-size: 13px;
+  color: #4a9eff;
+}
+
+.rotation-status p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+#currentRotationDisplay {
+  font-weight: 600;
+  color: #4a9eff;
+}
+
+#resetRotationButton {
+  background: #666;
+  color: #fff;
+}
+
+#resetRotationButton:not(:disabled):hover {
+  background: #777;
 }
