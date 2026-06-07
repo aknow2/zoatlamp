@@ -1,6 +1,6 @@
 # Polar Image Converter
 
-Centered polar images can be converted into a mirrored full-sphere equirectangular image with this CLI.
+Centered polar images can be converted into a mirrored full-sphere equirectangular image, or a non-mirrored unwrapped image with black vertical padding, with this CLI.
 
 ## Install
 
@@ -16,6 +16,33 @@ node index.js --input-dir ./input --output-dir ./output --width 2048 --height 10
 ```
 
 引数を省略すると `converter/input` 内の対応画像をすべて読み込み、`converter/output` に `<元ファイル名>_fullsphere_mirror.png` として出力します。
+
+単発変換では画像を1枚または2枚指定できます。
+
+```bash
+node index.js ./top.png --output ./output/one-image.png
+node index.js ./top.png --output ./output/shifted-left.png --shift-x -10
+node index.js ./top.png --output ./output/bottom-shifted-left.png --shift-bottom-x -10
+node index.js ./top.png --output ./output/no-mirror.png --no-mirror --padding-top 64 --padding-bottom 64
+node index.js ./top.png ./bottom.png --output ./output/two-images.png
+node index.js ./top.png ./bottom.png --output ./output/two-images-flipped.png --flip-bottom-horizontal
+```
+
+またはオプション名で指定できます。
+
+```bash
+node index.js --input ./top.png --bottom-input ./bottom.png --output ./output/two-images.png
+```
+
+2枚指定した場合、1枚目を出力の上半分に使い、2枚目は上下反転した状態で下半分を埋めます。1枚だけ指定した場合は従来通り、同じ画像で上下をミラーします。
+
+`--flip-bottom-horizontal` を指定すると、下半分に入る画像だけ左右反転します。2枚指定時は2枚目だけ、1枚指定やディレクトリ変換時は下側にミラーされる半分だけが対象です。
+
+`--shift-x <px>` を指定すると、出力画像の上下両方を左右方向に循環移動できます。正の値は右、負の値は左に移動します。例えば `--shift-x -10` は左に 10px 移動し、左端からはみ出た 10px が右端に回り込みます。`--shift-left 10` と `--shift-right 10` も同じ用途で使えます。
+
+上半分だけ、または下半分だけを動かしたい場合は `--shift-top-x <px>` / `--shift-bottom-x <px>` を使います。例えば `--shift-bottom-x -10` は下半分だけを左へ 10px 循環移動します。`--shift-x` と併用した場合、個別指定した側は `--shift-top-x` / `--shift-bottom-x` の値が優先されます。
+
+`--no-mirror` を指定すると、上下ミラーせずに入力画像を1回だけ縦方向へ展開します。このモードでは `--padding-top <px>` / `--padding-bottom <px>` で上下に黒い余白を追加できます。例えば `--no-mirror --padding-top 64 --padding-bottom 64` は、上下 64px を黒で埋め、残りの高さに変換結果を描画します。`--no-mirror` は1枚入力用です。2枚入力、`--bottom-input`、`--flip-bottom-horizontal`、`--shift-top-x`、`--shift-bottom-x` とは併用できません。左右に動かしたい場合は `--shift-x` を使います。
 
 対応拡張子は `.jpg`, `.jpeg`, `.png`, `.webp`, `.tif`, `.tiff` です。
 

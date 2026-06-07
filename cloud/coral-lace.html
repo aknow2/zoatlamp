@@ -62,7 +62,18 @@
       color: rgba(232, 255, 248, 0.86);
     }
 
-    input[type="range"] { width: 100%; }
+    input[type="range"],
+    select {
+      width: 100%;
+    }
+
+    select {
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: #173035;
+      color: #e8fff8;
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
 
     .checkRow {
       display: flex;
@@ -181,6 +192,19 @@
     </label>
 
     <label>
+      往復波形
+      <span class="value" id="phaseWaveValue"></span>
+      <select id="phaseWave">
+        <option value="0">線形</option>
+        <option value="1">サイン</option>
+        <option value="2">スムーズ</option>
+        <option value="3">加速</option>
+        <option value="4">減速</option>
+        <option value="5">パルス</option>
+      </select>
+    </label>
+
+    <label>
       枝分かれ反復
       <span class="value" id="foldCountValue"></span>
       <input id="foldCount" type="range" min="1" max="12" step="1" value="3">
@@ -216,6 +240,7 @@
     <div class="note">
       中心Y位置はプラスにすると上へ、マイナスにすると下へ移動します。<br>
       群体ずれは、対称セクターごとの網目の個体差です。<br>
+      往復波形は、一周内で群体ずれが戻るカーブです。<br>
       枝分かれ反復を上げるほど、1セクター内の細かい反復が増えます。<br>
       回転スピードは -720 ～ 720 deg/sec で設定できます。<br>
       マイナスにすると逆回転します。<br>
@@ -242,11 +267,14 @@
       'paper',
       'centerY',
       'stagger',
+      'phaseWave',
       'foldCount',
       'rotation',
       'rotationSpeed',
       'refreshRate',
     ];
+
+    const phaseWaveLabels = ['線形', 'サイン', 'スムーズ', '加速', '減速', 'パルス'];
 
     const controls = Object.fromEntries(
       controlIds.map((id) => [id, document.getElementById(id)])
@@ -269,6 +297,7 @@
         paper: Number(controls.paper.value),
         centerY: Number(controls.centerY.value),
         stagger: Number(controls.stagger.value),
+        phaseWave: Number(controls.phaseWave.value),
         foldCount: Number(controls.foldCount.value),
         rotation: Number(controls.rotation.value),
         rotationSpeed: Number(controls.rotationSpeed.value),
@@ -286,6 +315,7 @@
       valueEls.paper.textContent = params.paper.toFixed(2);
       valueEls.centerY.textContent = params.centerY.toFixed(2);
       valueEls.stagger.textContent = params.stagger.toFixed(2);
+      valueEls.phaseWave.textContent = phaseWaveLabels[params.phaseWave] ?? '線形';
       valueEls.foldCount.textContent = `${Math.round(params.foldCount)}`;
       valueEls.rotation.textContent = `${Math.round(params.rotation)}°`;
       valueEls.rotationSpeed.textContent = `${Math.round(params.rotationSpeed)}°/s`;
@@ -338,6 +368,7 @@
       console.assert(controls.symmetry.max === '100', '対称数の最大値は100であるべきです');
       console.assert(controls.centerY !== null, 'centerY スライダーが存在するべきです');
       console.assert(controls.stagger !== null, 'stagger スライダーが存在するべきです');
+      console.assert(controls.phaseWave !== null, 'phaseWave セレクトが存在するべきです');
       console.assert(controls.foldCount !== null, 'foldCount スライダーが存在するべきです');
       console.assert(controls.rotation !== null, 'rotation スライダーが存在するべきです');
       console.assert(controls.rotationSpeed !== null, 'rotationSpeed スライダーが存在するべきです');
@@ -347,6 +378,7 @@
       console.assert(savePngButton !== null, 'savePng ボタンが存在するべきです');
       console.assert(typeof readParams().centerY === 'number', 'centerY は number であるべきです');
       console.assert(typeof readParams().stagger === 'number', 'stagger は number であるべきです');
+      console.assert(Number.isInteger(readParams().phaseWave), 'phaseWave は integer であるべきです');
       console.assert(typeof readParams().foldCount === 'number', 'foldCount は number であるべきです');
       console.assert(getSquareCropRect(800, 600, 0).size === 600, '横長画面では短辺で切り抜くべきです');
       console.assert(getSquareCropRect(800, 600, 0).sx === 100, 'centerY=0 の切り抜きXは中央寄せであるべきです');
@@ -409,6 +441,7 @@ struct Uniforms {
   paper: f32,
   centerY: f32,
   stagger: f32,
+  phaseWave: f32,
   foldCount: f32,
   rotation: f32,
   seed: f32,
@@ -449,6 +482,34 @@ fn fbm(p0: vec2f) -> f32 {
   }
 
   return value;
+}
+
+fn shapePhaseWave(t: f32, wave: f32) -> f32 {
+  let x = clamp(t, 0.0, 1.0);
+
+  if (wave < 0.5) {
+    return x;
+  }
+
+  if (wave < 1.5) {
+    return sin(x * 1.57079632679);
+  }
+
+  if (wave < 2.5) {
+    return x * x * (3.0 - 2.0 * x);
+  }
+
+  if (wave < 3.5) {
+    return x * x;
+  }
+
+  if (wave < 4.5) {
+    let inv = 1.0 - x;
+    return 1.0 - inv * inv;
+  }
+
+  let pulse = sin(x * 3.14159265359);
+  return x + pulse * 0.28;
 }
 
 fn hash2(p: vec2f) -> vec2f {
@@ -545,7 +606,9 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let sectorIndex = floor(wrappedAngle / sectorAngle);
   let mirroredIndex = min(sectorIndex, symmetry - sectorIndex);
 
-  let phase = mirroredIndex * u.stagger;
+  let halfSymmetry = max(1.0, symmetry * 0.5);
+  let wavePosition = shapePhaseWave(mirroredIndex / halfSymmetry, u.phaseWave) * halfSymmetry;
+  let phase = wavePosition * u.stagger;
   let phaseVec = vec2f(cos(phase), sin(phase));
 
   let foldedAngle = abs(
@@ -684,6 +747,7 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
           params.paper,
           params.centerY,
           params.stagger,
+          params.phaseWave,
           params.foldCount,
           rotationRad,
           seed,

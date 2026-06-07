@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WebGPU Symmetric Ink Cloud</title>
+  <title>WebGPU Rotated Crop Cloud</title>
 
   <style>
     :root {
@@ -62,18 +62,7 @@
       color: rgba(243, 234, 220, 0.86);
     }
 
-    input[type="range"],
-    select {
-      width: 100%;
-    }
-
-    select {
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      background: #2b2621;
-      color: #f3eadc;
-      border-radius: 8px;
-      padding: 8px 10px;
-    }
+    input[type="range"] { width: 100%; }
 
     .checkRow {
       display: flex;
@@ -149,16 +138,16 @@
 
 <body>
   <aside>
-    <h1>点対称・墨雲 WebGPU</h1>
+    <h1>回転切り抜き・墨雲 WebGPU</h1>
     <p>
-      中心から放射状に広がる墨雲を WebGPU で生成します。<br>
-      模様自体は静止し、画像全体のみを回転させます。
+      非対称の雲を固定位置で切り抜きます。<br>
+      雲だけを配置数ぶん回転して、切り抜いた断片を円形に並べます。
     </p>
 
     <label>
-      対称数
+      配置数
       <span class="value" id="symmetryValue"></span>
-      <input id="symmetry" type="range" min="2" max="100" step="1" value="20">
+      <input id="symmetry" type="range" min="1" max="100" step="1" value="20">
     </label>
 
     <label>
@@ -186,43 +175,30 @@
     </label>
 
     <label>
-      位相ずれ
-      <span class="value" id="staggerValue"></span>
-      <input id="stagger" type="range" min="0" max="2" step="0.01" value="0.1">
+      切り取り幅
+      <span class="value" id="cropFillValue"></span>
+      <input id="cropFill" type="range" min="0.1" max="1" step="0.01" value="1">
     </label>
 
     <label>
-      往復波形
-      <span class="value" id="phaseWaveValue"></span>
-      <select id="phaseWave">
-        <option value="0">線形</option>
-        <option value="1">サイン</option>
-        <option value="2">スムーズ</option>
-        <option value="3">加速</option>
-        <option value="4">減速</option>
-        <option value="5">パルス</option>
-      </select>
+      境界ぼかし
+      <span class="value" id="cropFeatherValue"></span>
+      <input id="cropFeather" type="range" min="0" max="0.25" step="0.01" value="0.02">
     </label>
 
     <label>
-      折り返し数
-      <span class="value" id="phaseRepeatValue"></span>
-      <input id="phaseRepeat" type="range" min="1" max="16" step="1" value="1">
-    </label>
-
-    <label>
-      初期回転（度）
+      元雲の初期回転（度）
       <span class="value" id="rotationValue"></span>
       <input id="rotation" type="range" min="-180" max="180" step="1" value="0">
     </label>
 
     <div class="checkRow">
       <input id="autoRotate" type="checkbox" checked>
-      <label for="autoRotate">自動回転</label>
+      <label for="autoRotate">元雲を自動回転</label>
     </div>
 
     <label>
-      回転スピード（度/秒）
+      元雲の回転スピード（度/秒）
       <span class="value" id="rotationSpeedValue"></span>
       <input id="rotationSpeed" type="range" min="-720" max="720" step="1" value="24">
     </label>
@@ -233,18 +209,13 @@
       <input id="refreshRate" type="range" min="1" max="60" step="1" value="25">
     </label>
 
-    <button id="reroll">模様を再生成</button>
-    <button id="resetSpin">回転をリセット</button>
-    <button id="savePng">中心位置を1:1でPNG保存</button>
+    <button id="reroll">元雲を再生成</button>
+    <button id="resetSpin">元雲の回転をリセット</button>
 
     <div class="note">
-      中心Y位置はプラスにすると上へ、マイナスにすると下へ移動します。<br>
-      位相ずれは、対称セクターごとの模様のズレ量です。<br>
-      往復波形は、一周内で位相ずれが戻るカーブです。<br>
-      折り返し数は、一周内で位相ずれが往復する回数です。<br>
-      回転スピードは -720 ～ 720 deg/sec で設定できます。<br>
-      マイナスにすると逆回転します。<br>
-      PNG保存では、現在の中心位置を基準に正方形で切り抜いて保存します。
+      配置数1は、非対称の雲を1枚だけ切り抜く状態です。<br>
+      配置数を増やすと、元雲を 360 / 配置数 ずつ回転して同じ切り取り位置から断片を作ります。<br>
+      切り取り幅を下げると、各セクターの断片が細くなります。
     </div>
   </aside>
 
@@ -266,15 +237,12 @@
       'swirl',
       'paper',
       'centerY',
-      'stagger',
-      'phaseWave',
-      'phaseRepeat',
+      'cropFill',
+      'cropFeather',
       'rotation',
       'rotationSpeed',
       'refreshRate',
     ];
-
-    const phaseWaveLabels = ['線形', 'サイン', 'スムーズ', '加速', '減速', 'パルス'];
 
     const controls = Object.fromEntries(
       controlIds.map((id) => [id, document.getElementById(id)])
@@ -287,7 +255,6 @@
     const autoRotateEl = document.getElementById('autoRotate');
     const rerollButton = document.getElementById('reroll');
     const resetSpinButton = document.getElementById('resetSpin');
-    const savePngButton = document.getElementById('savePng');
 
     function readParams() {
       return {
@@ -296,9 +263,8 @@
         swirl: Number(controls.swirl.value),
         paper: Number(controls.paper.value),
         centerY: Number(controls.centerY.value),
-        stagger: Number(controls.stagger.value),
-        phaseWave: Number(controls.phaseWave.value),
-        phaseRepeat: Number(controls.phaseRepeat.value),
+        cropFill: Number(controls.cropFill.value),
+        cropFeather: Number(controls.cropFeather.value),
         rotation: Number(controls.rotation.value),
         rotationSpeed: Number(controls.rotationSpeed.value),
         refreshRate: Number(controls.refreshRate.value),
@@ -314,15 +280,14 @@
       valueEls.swirl.textContent = params.swirl.toFixed(2);
       valueEls.paper.textContent = params.paper.toFixed(2);
       valueEls.centerY.textContent = params.centerY.toFixed(2);
-      valueEls.stagger.textContent = params.stagger.toFixed(2);
-      valueEls.phaseWave.textContent = phaseWaveLabels[params.phaseWave] ?? '線形';
-      valueEls.phaseRepeat.textContent = `${params.phaseRepeat}回`;
+      valueEls.cropFill.textContent = params.cropFill.toFixed(2);
+      valueEls.cropFeather.textContent = params.cropFeather.toFixed(2);
       valueEls.rotation.textContent = `${Math.round(params.rotation)}°`;
       valueEls.rotationSpeed.textContent = `${Math.round(params.rotationSpeed)}°/s`;
       valueEls.refreshRate.textContent = `${Math.round(params.refreshRate)} FPS`;
     }
 
-    const STORAGE_KEY = 'inkCloud_settings_v1';
+    const STORAGE_KEY = 'rotatedCropCloud_settings_v1';
 
     function saveSettings() {
       const data = {};
@@ -347,13 +312,9 @@
         return;
       }
       for (const id of controlIds) {
-        if (data[id] != null) {
-          controls[id].value = data[id];
-        }
+        if (data[id] != null) controls[id].value = data[id];
       }
-      if (data.autoRotate != null) {
-        autoRotateEl.checked = data.autoRotate;
-      }
+      if (data.autoRotate != null) autoRotateEl.checked = data.autoRotate;
     }
 
     loadSettings();
@@ -365,41 +326,13 @@
     let lastRenderMs = 0;
 
     function runSelfTests() {
-      console.assert(controls.symmetry.max === '100', '対称数の最大値は100であるべきです');
-      console.assert(controls.centerY !== null, 'centerY スライダーが存在するべきです');
-      console.assert(controls.stagger !== null, 'stagger スライダーが存在するべきです');
-      console.assert(controls.phaseWave !== null, 'phaseWave セレクトが存在するべきです');
-      console.assert(controls.phaseRepeat !== null, 'phaseRepeat スライダーが存在するべきです');
-      console.assert(controls.rotation !== null, 'rotation スライダーが存在するべきです');
-      console.assert(controls.rotationSpeed !== null, 'rotationSpeed スライダーが存在するべきです');
-      console.assert(controls.refreshRate !== null, 'refreshRate スライダーが存在するべきです');
-      console.assert(controls.rotationSpeed.min === '-720', 'rotationSpeed の最小値は -720 であるべきです');
-      console.assert(controls.rotationSpeed.max === '720', 'rotationSpeed の最大値は 720 であるべきです');
-      console.assert(savePngButton !== null, 'savePng ボタンが存在するべきです');
-      console.assert(typeof readParams().centerY === 'number', 'centerY は number であるべきです');
-      console.assert(typeof readParams().stagger === 'number', 'stagger は number であるべきです');
-      console.assert(Number.isInteger(readParams().phaseWave), 'phaseWave は integer であるべきです');
-      console.assert(Number.isInteger(readParams().phaseRepeat), 'phaseRepeat は integer であるべきです');
-      console.assert(getSquareCropRect(800, 600, 0).size === 600, '横長画面では短辺で切り抜くべきです');
-      console.assert(getSquareCropRect(800, 600, 0).sx === 100, 'centerY=0 の切り抜きXは中央寄せであるべきです');
-      console.assert(getSquareCropRect(800, 600, 0).sy === 0, 'centerY=0 の切り抜きYは中央寄せであるべきです');
-      console.assert(getSquareCropRect(800, 600, 0.5).sy === 0, '上側へ寄せた切り抜きは上端でクランプされるべきです');
-      console.assert(getSquareCropRect(800, 600, -0.5).sy === 0, '十分に収まる場合は下側でも全体を維持するべきです');
+      console.assert(controls.symmetry.min === '1', '配置数は1から指定できるべきです');
+      console.assert(controls.cropFill !== null, 'cropFill スライダーが存在するべきです');
+      console.assert(controls.cropFeather !== null, 'cropFeather スライダーが存在するべきです');
+      console.assert(typeof readParams().cropFill === 'number', 'cropFill は number であるべきです');
+      console.assert(typeof readParams().cropFeather === 'number', 'cropFeather は number であるべきです');
       console.assert(Number.isFinite(seed), 'seed は有限数であるべきです');
       console.info('Self tests passed');
-    }
-
-    function getSquareCropRect(width, height, centerY) {
-      const size = Math.min(width, height);
-      const minResolution = Math.min(width, height);
-      const centerX = width * 0.5;
-      const centerPixelY = (height - centerY * minResolution) * 0.5;
-      const maxSx = Math.max(0, width - size);
-      const maxSy = Math.max(0, height - size);
-      const sx = Math.round(Math.min(Math.max(centerX - size * 0.5, 0), maxSx));
-      const sy = Math.round(Math.min(Math.max(centerPixelY - size * 0.5, 0), maxSy));
-
-      return { sx, sy, size };
     }
 
     async function main() {
@@ -440,14 +373,12 @@ struct Uniforms {
   swirl: f32,
   paper: f32,
   centerY: f32,
-  stagger: f32,
-  phaseWave: f32,
-  phaseRepeat: f32,
+  cropFill: f32,
+  cropFeather: f32,
   rotation: f32,
   seed: f32,
   pad0: f32,
   pad1: f32,
-  pad2: f32,
 };
 
 @group(0) @binding(0) var<uniform> u: Uniforms;
@@ -484,32 +415,32 @@ fn fbm(p0: vec2f) -> f32 {
   return value;
 }
 
-fn shapePhaseWave(t: f32, wave: f32) -> f32 {
-  let x = clamp(t, 0.0, 1.0);
+fn rotate(p: vec2f, angle: f32) -> vec2f {
+  let c = cos(angle);
+  let s = sin(angle);
+  return mat2x2f(c, -s, s, c) * p;
+}
 
-  if (wave < 0.5) {
-    return x;
-  }
+fn unsymmetricCloud(p: vec2f) -> f32 {
+  let radius = length(p);
+  let angle = atan2(p.y, p.x);
+  let seedOffset = vec2f(u.seed * 0.000001, u.seed * 0.0000007);
+  let basePoint = p * (2.1 + radius * 2.6);
 
-  if (wave < 1.5) {
-    return sin(x * 1.57079632679);
-  }
+  let warp = fbm(basePoint * 1.05 + seedOffset) - 0.5;
+  let cloudPoint = basePoint + vec2f(u.swirl * warp, -u.swirl * 0.18 * radius);
 
-  if (wave < 2.5) {
-    return x * x * (3.0 - 2.0 * x);
-  }
+  var ink = fbm(cloudPoint * 2.2 + seedOffset);
+  ink += 0.58 * fbm(cloudPoint * 5.1 - seedOffset);
 
-  if (wave < 3.5) {
-    return x * x;
-  }
+  let radialRays = pow(abs(sin(angle * 5.5 + radius * 12.0 + warp * 2.0)), 5.0);
+  ink += radialRays * 0.24 * smoothstep(0.12, 0.95, radius);
 
-  if (wave < 4.5) {
-    let inv = 1.0 - x;
-    return 1.0 - inv * inv;
-  }
+  let radialMask = 1.0 - smoothstep(0.82, 1.08, radius);
+  let inkMask = smoothstep(0.40 + u.paper * 0.25, 1.08, ink * u.cloud * radialMask);
+  let edgeFade = 1.0 - smoothstep(0.95, 1.18, radius);
 
-  let pulse = sin(x * 3.14159265359);
-  return x + pulse * 0.28;
+  return clamp(inkMask * edgeFade, 0.0, 0.95);
 }
 
 @vertex
@@ -532,74 +463,33 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
   var uv = (position.xy * 2.0 - u.resolution) / minResolution;
   uv.y = -uv.y;
 
-  // 画面上の固定中心。
-  // centerY がプラスなら、模様の中心は画面上側へ移動する。
   let center = vec2f(0.0, u.centerY);
   let localUv = uv - center;
+  let radius = length(localUv);
+  let rawAngle = atan2(localUv.y, localUv.x);
 
-  // 固定中心との差分だけを回転させる。
-  // これにより、回転時に中心が下方向へ流れない。
-  let c = cos(u.rotation);
-  let s = sin(u.rotation);
-  uv = mat2x2f(c, -s, s, c) * localUv;
-
-  let radius = length(uv);
-  let rawAngle = atan2(uv.y, uv.x);
-
-  let symmetry = max(2.0, u.symmetry);
-  let sectorAngle = tau / symmetry;
-
-  // セクター番号を取得して、一周内の位置から折り返し位相を作る。
+  let copyCount = max(1.0, floor(u.symmetry + 0.5));
+  let sectorAngle = tau / copyCount;
   let wrappedAngle = fract((rawAngle + pi) / tau) * tau;
   let sectorIndex = floor(wrappedAngle / sectorAngle);
+  let sectorStart = sectorIndex * sectorAngle - pi;
 
-  // 模様自体は時間変化させず、折り返し値に波形をかけて静的な位相差を与える。
-  let halfSymmetry = max(1.0, symmetry * 0.5);
-  let repeatCount = max(1.0, floor(u.phaseRepeat + 0.5));
-  let turnPosition = sectorIndex / symmetry;
-  let repeatedPosition = fract(turnPosition * repeatCount);
-  let repeatedMirror = 1.0 - abs(repeatedPosition * 2.0 - 1.0);
-  let wavePosition = shapePhaseWave(repeatedMirror, u.phaseWave) * halfSymmetry;
-  let phase = wavePosition * u.stagger;
-  let phaseVec = vec2f(cos(phase), sin(phase));
+  // 出力側だけを固定の切り取り窓へ戻す。
+  let cropUv = rotate(localUv, -sectorStart);
+  let cropAngle = fract(atan2(cropUv.y, cropUv.x) / tau) * tau;
+  let centeredCropAngle = cropAngle - sectorAngle * 0.5;
+  let halfCrop = sectorAngle * 0.5 * clamp(u.cropFill, 0.0, 1.0);
+  let feather = sectorAngle * max(0.0001, u.cropFeather);
+  let cropMask = 1.0 - smoothstep(halfCrop, halfCrop + feather, abs(centeredCropAngle));
 
-  let foldedAngle = abs(
-    fract((rawAngle + sectorAngle * 0.5) / sectorAngle) * sectorAngle - sectorAngle * 0.5
-  );
-
-  let folded = vec2f(cos(foldedAngle), sin(foldedAngle)) * radius;
-  let seedOffset = vec2f(u.seed * 0.000001, u.seed * 0.0000007);
-
-  let basePoint = folded * (2.1 + radius * 2.6);
-
-  // 位相ずれはノイズ座標を少しずらして表現する。
-  // 時間は使わないため、模様が下へ流れることはない。
-  let phaseOffset1 = phaseVec * 0.20;
-  let phaseOffset2 = vec2f(phaseVec.y, -phaseVec.x) * 0.14;
-
-  let warp = fbm(basePoint * 1.05 + seedOffset + phaseOffset1) - 0.5;
-
-  let cloudPoint = basePoint
-    + vec2f(u.swirl * warp, -u.swirl * 0.18 * radius)
-    + phaseOffset2 * 0.35;
-
-  var ink = fbm(cloudPoint * 2.2 + seedOffset + phaseOffset1);
-  ink += 0.58 * fbm(cloudPoint * 5.1 - seedOffset + phaseOffset2);
-
-  let radialRays = pow(abs(sin(foldedAngle * 5.5 + radius * 12.0 + warp * 2.0)), 5.0);
-  ink += radialRays * 0.24 * smoothstep(0.12, 0.95, radius);
-
-  let radialMask = 1.0 - smoothstep(0.82, 1.08, radius);
-  ink *= radialMask;
-
-  let inkMask = smoothstep(0.40 + u.paper * 0.25, 1.08, ink * u.cloud);
+  // 切り取り窓は固定したまま、元雲だけを配置数ぶんでちょうど360度回転させる。
+  let sourceRotation = u.rotation + sectorIndex * sectorAngle;
+  let sourceUv = rotate(cropUv, sourceRotation);
+  let ink = unsymmetricCloud(sourceUv) * cropMask;
 
   let paperColor = vec3f(0.0, 0.0, 0.0);
   let inkColor = vec3f(1.0, 1.0, 1.0);
-
-  let edgeFade = 1.0 - smoothstep(0.95, 1.18, radius);
-  let mixAmount = clamp(inkMask * edgeFade, 0.0, 0.95);
-  let color = mix(paperColor, inkColor, mixAmount);
+  let color = mix(paperColor, inkColor, ink);
 
   return vec4f(color, 1.0);
 }
@@ -632,14 +522,6 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         primitive: { topology: 'triangle-list' },
       });
 
-      // PNG保存用に rgba8unorm 固定パイプライン（読み取り保証のため）
-      const savePipeline = device.createRenderPipeline({
-        layout: pipelineLayout,
-        vertex: { module: cloudShader, entryPoint: 'vs' },
-        fragment: { module: cloudShader, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
-        primitive: { topology: 'triangle-list' },
-      });
-
       function resize() {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
@@ -668,12 +550,10 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
           params.swirl,
           params.paper,
           params.centerY,
-          params.stagger,
-          params.phaseWave,
-          params.phaseRepeat,
+          params.cropFill,
+          params.cropFeather,
           rotationRad,
           seed,
-          0,
           0,
           0,
         ]);
@@ -705,100 +585,6 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         pass.end();
 
         device.queue.submit([encoder.finish()]);
-      }
-
-      async function saveSquarePng() {
-        resize();
-        updateUniforms();
-
-        const params = readParams();
-        const w = canvas.width;
-        const h = canvas.height;
-
-        // オフスクリーンテクスチャ（rgba8unorm 固定でピクセル読み取りを保証）
-        const offTex = device.createTexture({
-          size: [w, h],
-          format: 'rgba8unorm',
-          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
-        });
-
-        // copyTextureToBuffer は bytesPerRow が 256 の倍数である必要がある
-        const bytesPerRow = Math.ceil(w * 4 / 256) * 256;
-        const readBuf = device.createBuffer({
-          size: bytesPerRow * h,
-          usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-        });
-
-        const encoder = device.createCommandEncoder();
-
-        const pass = encoder.beginRenderPass({
-          colorAttachments: [{
-            view: offTex.createView(),
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            loadOp: 'clear',
-            storeOp: 'store',
-          }],
-        });
-        pass.setBindGroup(0, bindGroup);
-        pass.setPipeline(savePipeline);
-        pass.draw(3);
-        pass.end();
-
-        encoder.copyTextureToBuffer(
-          { texture: offTex },
-          { buffer: readBuf, bytesPerRow },
-          [w, h],
-        );
-        device.queue.submit([encoder.finish()]);
-
-        await readBuf.mapAsync(GPUMapMode.READ);
-        const raw = new Uint8Array(readBuf.getMappedRange());
-
-        const { sx, sy, size } = getSquareCropRect(w, h, params.centerY);
-        const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = size;
-        exportCanvas.height = size;
-
-        const exportContext = exportCanvas.getContext('2d');
-        if (!exportContext) {
-          throw new Error('PNG保存用の2Dコンテキストを取得できませんでした。');
-        }
-
-        const imgData = exportContext.createImageData(size, size);
-        for (let row = 0; row < size; row++) {
-          for (let col = 0; col < size; col++) {
-            const src = (sy + row) * bytesPerRow + (sx + col) * 4;
-            const dst = (row * size + col) * 4;
-            imgData.data[dst]     = raw[src];
-            imgData.data[dst + 1] = raw[src + 1];
-            imgData.data[dst + 2] = raw[src + 2];
-            imgData.data[dst + 3] = raw[src + 3];
-          }
-        }
-
-        readBuf.unmap();
-        readBuf.destroy();
-        offTex.destroy();
-
-        exportContext.putImageData(imgData, 0, 0);
-
-        const blob = await new Promise((resolve, reject) => {
-          exportCanvas.toBlob((pngBlob) => {
-            if (pngBlob) {
-              resolve(pngBlob);
-              return;
-            }
-            reject(new Error('PNGの生成に失敗しました。'));
-          }, 'image/png');
-        });
-
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        link.href = url;
-        link.download = `ink-cloud-square-${timestamp}.png`;
-        link.click();
-        URL.revokeObjectURL(url);
       }
 
       function animationLoop(nowMs) {
@@ -847,16 +633,6 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
       resetSpinButton.addEventListener('click', () => {
         spinOffsetDeg = 0;
         render();
-      });
-
-      savePngButton.addEventListener('click', async () => {
-        try {
-          await saveSquarePng();
-        } catch (err) {
-          console.error(err);
-          error.textContent = `PNG保存でエラーが発生しました: ${err.message}`;
-          error.style.display = 'grid';
-        }
       });
 
       window.addEventListener('resize', render);

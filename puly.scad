@@ -125,5 +125,16 @@ module motor_gear(shaft_adjust = 0) {
     }
 }
 
-center_gear();
-motor_gear();
+module gear_cover() {
+ difference(){
+   cylinder(h=2, r=72.5+3);
+   cylinder(h=10, r=64,center=true);
+
+ }
+
+}
+
+//center_gear();
+//motor_gear();
+translate([0,0,20])
+gear_cover();
