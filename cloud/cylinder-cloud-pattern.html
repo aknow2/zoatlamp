@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WebGPU Symmetric Ink Cloud - Stable Phase</title>
+  <title>WebGPU Cylinder Cloud Pattern</title>
 
   <style>
     :root {
@@ -89,22 +89,6 @@
       display: inline;
     }
 
-    .repeatPhaseControls {
-      margin: 8px 0 14px;
-      padding: 10px 12px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.04);
-    }
-
-    .repeatPhaseControls[hidden] {
-      display: none;
-    }
-
-    .repeatPhaseControls label {
-      margin: 10px 0;
-    }
-
     button {
       width: 100%;
       border: 1px solid rgba(255, 255, 255, 0.16);
@@ -160,27 +144,59 @@
       margin-top: 10px;
       padding-bottom: 24px;
     }
+
+    @media (max-width: 700px) {
+      body {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(320px, 58vh) minmax(280px, 42vh);
+      }
+
+      main {
+        grid-row: 1;
+        height: 100%;
+      }
+
+      aside {
+        grid-row: 2;
+        height: 100%;
+        max-height: 100%;
+        border-right: 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+      }
+    }
   </style>
 </head>
 
 <body>
   <aside>
-    <h1>点対称・墨雲 WebGPU 安定位相版</h1>
+    <h1>二円柱切り抜き・墨雲 WebGPU</h1>
     <p>
-      中心から放射状に広がる墨雲を WebGPU で生成します。<br>
-      位相ずれを角度方向の差として出す安定版です。
+      左右2本の円柱に雲模様を貼り、配置数ぶん回転した断片を円形に並べます。<br>
+      各セクターの左側は左円柱、右側は右円柱から切り取ります。
     </p>
 
     <label>
-      対称数
+      配置数
       <span class="value" id="symmetryValue"></span>
-      <input id="symmetry" type="range" min="2" max="100" step="1" value="20">
+      <input id="symmetry" type="range" min="1" max="120" step="1" value="24">
     </label>
 
     <label>
       雲の濃さ
       <span class="value" id="cloudValue"></span>
-      <input id="cloud" type="range" min="0" max="2" step="0.01" value="0.8">
+      <input id="cloud" type="range" min="0" max="2" step="0.01" value="0.98">
+    </label>
+
+    <label>
+      雲の渦
+      <span class="value" id="swirlValue"></span>
+      <input id="swirl" type="range" min="0" max="100" step="0.01" value="9">
+    </label>
+
+    <label>
+      余白
+      <span class="value" id="paperValue"></span>
+      <input id="paper" type="range" min="0" max="1" step="0.01" value="0.18">
     </label>
 
     <label>
@@ -190,69 +206,96 @@
     </label>
 
     <label>
-      雲の渦
-      <span class="value" id="swirlValue"></span>
-      <input id="swirl" type="range" min="0" max="100" step="0.01" value="7">
-    </label>
-
-    <label>
-      余白
-      <span class="value" id="paperValue"></span>
-      <input id="paper" type="range" min="0" max="1" step="0.01" value="0.26">
-    </label>
-
-    <label>
       中心Y位置
       <span class="value" id="centerYValue"></span>
       <input id="centerY" type="range" min="-0.5" max="0.5" step="0.01" value="0.0">
     </label>
 
     <label>
-      位相ずれ
-      <span class="value" id="staggerValue"></span>
-      <input id="stagger" type="range" min="-2" max="2" step="0.01" value="0.1">
+      切り取り幅
+      <span class="value" id="cropFillValue"></span>
+      <input id="cropFill" type="range" min="0.1" max="1" step="0.01" value="1">
     </label>
 
     <label>
-      外側固定開始
-      <span class="value" id="outerStableStartValue"></span>
-      <input id="outerStableStart" type="range" min="0.2" max="1" step="0.01" value="0.88">
+      境界ぼかし
+      <span class="value" id="cropFeatherValue"></span>
+      <input id="cropFeather" type="range" min="0" max="0.25" step="0.01" value="0.02">
     </label>
 
     <label>
-      往復波形
-      <span class="value" id="phaseWaveValue"></span>
-      <select id="phaseWave">
-        <option value="0">線形</option>
-        <option value="1">サイン</option>
-        <option value="2">スムーズ</option>
-        <option value="3">加速</option>
-        <option value="4">減速</option>
-        <option value="5">パルス</option>
+      切り取り角度（度）
+      <span class="value" id="sliceAngleValue"></span>
+      <input id="sliceAngle" type="range" min="-80" max="80" step="1" value="0">
+    </label>
+
+    <label>
+      円柱周回数
+      <span class="value" id="sourceTurnsValue"></span>
+      <input id="sourceTurns" type="range" min="-120" max="120" step="0.25" value="1">
+    </label>
+
+    <label>
+      円柱モード
+      <span class="value" id="cylinderModeValue"></span>
+      <select id="cylinderMode">
+        <option value="2">二つ（左右対称）</option>
+        <option value="1">一つ</option>
       </select>
     </label>
 
     <label>
-      折り返し数
-      <span class="value" id="phaseRepeatValue"></span>
-      <input id="phaseRepeat" type="range" min="0" max="16" step="1" value="1">
+      左右位相崩し（度）
+      <span class="value" id="pairPhaseValue"></span>
+      <input id="pairPhase" type="range" min="-180" max="180" step="1" value="0">
     </label>
 
-    <div class="repeatPhaseControls" id="repeatPhaseControls"></div>
+    <label>
+      合わせ目ブレンド
+      <span class="value" id="seamBlendValue"></span>
+      <input id="seamBlend" type="range" min="0" max="0.4" step="0.01" value="0.04">
+    </label>
 
     <label>
-      初期回転（度）
+      再生モード
+      <span class="value" id="playModeValue"></span>
+      <select id="playMode">
+        <option value="0">通常</option>
+        <option value="1">フェナキストスコープ</option>
+      </select>
+    </label>
+
+    <label>
+      コマ速度（FPS）
+      <span class="value" id="frameSpeedValue"></span>
+      <input id="frameSpeed" type="range" min="0" max="30" step="1" value="12">
+    </label>
+
+    <label>
+      コマ進み量
+      <span class="value" id="frameStepValue"></span>
+      <input id="frameStep" type="range" min="-4" max="4" step="0.25" value="1">
+    </label>
+
+    <label>
+      シャッター幅
+      <span class="value" id="shutterWidthValue"></span>
+      <input id="shutterWidth" type="range" min="0" max="1" step="0.01" value="0.62">
+    </label>
+
+    <label>
+      円の初期回転（度）
       <span class="value" id="rotationValue"></span>
       <input id="rotation" type="range" min="-180" max="180" step="1" value="0">
     </label>
 
     <div class="checkRow">
       <input id="autoRotate" type="checkbox" checked>
-      <label for="autoRotate">自動回転</label>
+      <label for="autoRotate">円を自動回転</label>
     </div>
 
     <label>
-      回転スピード（度/秒）
+      円の回転スピード（度/秒）
       <span class="value" id="rotationSpeedValue"></span>
       <input id="rotationSpeed" type="range" min="-720" max="720" step="1" value="24">
     </label>
@@ -263,20 +306,16 @@
       <input id="refreshRate" type="range" min="1" max="60" step="1" value="25">
     </label>
 
-    <button id="reroll">模様を再生成</button>
-    <button id="resetSpin">回転をリセット</button>
+    <button id="reroll">雲を再生成</button>
+    <button id="resetSpin">円の回転をリセット</button>
     <button id="savePng">中心位置を1:1でPNG保存</button>
 
     <div class="note">
-      中心Y位置はプラスにすると上へ、マイナスにすると下へ移動します。<br>
-      位相ずれは、対称セクターごとの模様のズレ量です。<br>
-      外側固定開始は、この半径より外側で位相差を固定する位置です。<br>
-      往復波形は、一周内で位相ずれが戻るカーブです。<br>
-      折り返し数は、0 で折り返しなし、1以上で一周内の往復回数です。<br>
-      折り返し数が1以上の時は、折り返しごとの位相スライダーを使います。<br>
-      回転スピードは -720 ～ 720 deg/sec で設定できます。<br>
-      マイナスにすると逆回転します。<br>
-      PNG保存では、現在の中心位置を基準に正方形で切り抜いて保存します。
+      配置数を増やすと、円柱を 360 / 配置数 ずつ回した断片を使います。<br>
+      円柱周回数は、円を一周する間に円柱側を何周読むかです。1で360度、2で720度です。<br>
+      円柱は円を作るための一時的な生成元です。画面上では完成した円だけを回転します。<br>
+      フェナキストスコープモードでは、各セクターを離散フレームとしてコマ送りし、シャッターで間欠表示します。<br>
+      二つモードでは同じ雲模様を中央線で反転して使います。左右位相を動かすと右側だけ角度差を付けられます。
     </div>
   </aside>
 
@@ -295,21 +334,25 @@
     const controlIds = [
       'symmetry',
       'cloud',
-      'circleSize',
       'swirl',
       'paper',
+      'circleSize',
       'centerY',
-      'stagger',
-      'outerStableStart',
-      'phaseWave',
-      'phaseRepeat',
+      'cropFill',
+      'cropFeather',
+      'sliceAngle',
+      'sourceTurns',
+      'cylinderMode',
+      'pairPhase',
+      'seamBlend',
+      'playMode',
+      'frameSpeed',
+      'frameStep',
+      'shutterWidth',
       'rotation',
       'rotationSpeed',
       'refreshRate',
     ];
-
-    const phaseWaveLabels = ['線形', 'サイン', 'スムーズ', '加速', '減速', 'パルス'];
-    const MAX_REPEAT_PHASES = 16;
 
     const controls = Object.fromEntries(
       controlIds.map((id) => [id, document.getElementById(id)])
@@ -323,81 +366,73 @@
     const rerollButton = document.getElementById('reroll');
     const resetSpinButton = document.getElementById('resetSpin');
     const savePngButton = document.getElementById('savePng');
-    const repeatPhaseControlsEl = document.getElementById('repeatPhaseControls');
-    const repeatPhaseInputs = Array.from({ length: MAX_REPEAT_PHASES }, (_, index) => {
-      const label = document.createElement('label');
-      const text = document.createTextNode(`折り返し${index + 1} 位相 `);
-      const value = document.createElement('span');
-      const input = document.createElement('input');
-
-      value.className = 'value';
-      input.type = 'range';
-      input.min = '-2';
-      input.max = '2';
-      input.step = '0.01';
-      input.value = controls.stagger.value;
-
-      label.append(text, value, input);
-      repeatPhaseControlsEl.append(label);
-
-      return { input, label, value };
-    });
-
-    function readRepeatPhases() {
-      return repeatPhaseInputs.map(({ input }) => Number(input.value));
-    }
 
     function readParams() {
       return {
         symmetry: Number(controls.symmetry.value),
         cloud: Number(controls.cloud.value),
-        circleSize: Number(controls.circleSize.value),
         swirl: Number(controls.swirl.value),
         paper: Number(controls.paper.value),
+        circleSize: Number(controls.circleSize.value),
         centerY: Number(controls.centerY.value),
-        stagger: Number(controls.stagger.value),
-        outerStableStart: Number(controls.outerStableStart.value),
-        phaseWave: Number(controls.phaseWave.value),
-        phaseRepeat: Number(controls.phaseRepeat.value),
+        cropFill: Number(controls.cropFill.value),
+        cropFeather: Number(controls.cropFeather.value),
+        sliceAngle: Number(controls.sliceAngle.value),
+        sourceTurns: Number(controls.sourceTurns.value),
+        cylinderMode: Number(controls.cylinderMode.value),
+        pairPhase: Number(controls.pairPhase.value),
+        seamBlend: Number(controls.seamBlend.value),
+        playMode: Number(controls.playMode.value),
+        frameSpeed: Number(controls.frameSpeed.value),
+        frameStep: Number(controls.frameStep.value),
+        shutterWidth: Number(controls.shutterWidth.value),
         rotation: Number(controls.rotation.value),
         rotationSpeed: Number(controls.rotationSpeed.value),
         refreshRate: Number(controls.refreshRate.value),
         autoRotate: autoRotateEl.checked,
-        repeatPhases: readRepeatPhases(),
       };
     }
 
-    function syncRepeatPhaseControls(params) {
-      const repeatCount = Math.max(0, Math.min(MAX_REPEAT_PHASES, Math.round(params.phaseRepeat)));
-      repeatPhaseControlsEl.hidden = repeatCount < 1;
+    function syncSourceTurnsLimit() {
+      const maxTurns = Math.max(1, Number(controls.symmetry.value));
+      const currentTurns = Number(controls.sourceTurns.value);
+      controls.sourceTurns.max = String(maxTurns);
+      controls.sourceTurns.min = String(-maxTurns);
 
-      repeatPhaseInputs.forEach(({ label, value, input }, index) => {
-        const visible = index < repeatCount;
-        label.hidden = !visible;
-        value.textContent = Number(input.value).toFixed(2);
-      });
+      if (currentTurns > maxTurns) {
+        controls.sourceTurns.value = String(maxTurns);
+      } else if (currentTurns < -maxTurns) {
+        controls.sourceTurns.value = String(-maxTurns);
+      }
     }
 
     function syncLabels() {
+      syncSourceTurnsLimit();
       const params = readParams();
 
       valueEls.symmetry.textContent = String(params.symmetry);
       valueEls.cloud.textContent = params.cloud.toFixed(2);
-      valueEls.circleSize.textContent = params.circleSize.toFixed(2);
       valueEls.swirl.textContent = params.swirl.toFixed(2);
       valueEls.paper.textContent = params.paper.toFixed(2);
+      valueEls.circleSize.textContent = params.circleSize.toFixed(2);
       valueEls.centerY.textContent = params.centerY.toFixed(2);
-      valueEls.stagger.textContent = params.stagger.toFixed(2);
-      valueEls.outerStableStart.textContent = `${Math.round(params.outerStableStart * 100)}%`;
-      valueEls.phaseWave.textContent = phaseWaveLabels[params.phaseWave] ?? '線形';
-      valueEls.phaseRepeat.textContent = `${params.phaseRepeat}回`;
+      valueEls.cropFill.textContent = params.cropFill.toFixed(2);
+      valueEls.cropFeather.textContent = params.cropFeather.toFixed(2);
+      valueEls.sliceAngle.textContent = `${Math.round(params.sliceAngle)}°`;
+      valueEls.sourceTurns.textContent = `${params.sourceTurns.toFixed(2)}周`;
+      valueEls.cylinderMode.textContent = params.cylinderMode > 1 ? '二つ' : '一つ';
+      valueEls.pairPhase.textContent = `${Math.round(params.pairPhase)}°`;
+      valueEls.seamBlend.textContent = params.seamBlend.toFixed(2);
+      valueEls.playMode.textContent = params.playMode > 0 ? 'フェナキストスコープ' : '通常';
+      valueEls.frameSpeed.textContent = `${Math.round(params.frameSpeed)} FPS`;
+      valueEls.frameStep.textContent = params.frameStep.toFixed(2);
+      valueEls.shutterWidth.textContent = params.shutterWidth.toFixed(2);
       valueEls.rotation.textContent = `${Math.round(params.rotation)}°`;
       valueEls.rotationSpeed.textContent = `${Math.round(params.rotationSpeed)}°/s`;
       valueEls.refreshRate.textContent = `${Math.round(params.refreshRate)} FPS`;
-      syncRepeatPhaseControls(params);
     }
 
-    const STORAGE_KEY = 'inkCloud_settings_stable_phase_v1';
+    const STORAGE_KEY = 'cylinderCloudPattern_settings_v5';
 
     function saveSettings() {
       const data = {};
@@ -405,7 +440,6 @@
         data[id] = controls[id].value;
       }
       data.autoRotate = autoRotateEl.checked;
-      data.repeatPhases = readRepeatPhases();
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       } catch (_) {
@@ -423,59 +457,53 @@
         return;
       }
       for (const id of controlIds) {
-        if (data[id] != null) {
-          controls[id].value = data[id];
-        }
+        if (data[id] != null) controls[id].value = data[id];
       }
-      if (data.autoRotate != null) {
-        autoRotateEl.checked = data.autoRotate;
-      }
-      if (Array.isArray(data.repeatPhases)) {
-        repeatPhaseInputs.forEach(({ input }, index) => {
-          if (data.repeatPhases[index] != null) {
-            input.value = data.repeatPhases[index];
-          }
-        });
-      }
+      if (data.autoRotate != null) autoRotateEl.checked = data.autoRotate;
     }
 
     loadSettings();
 
-    let seed = Math.floor(Math.random() * 1_000_000_000);
+    let sourceSeed = Math.floor(Math.random() * 1_000_000_000);
     let spinOffsetDeg = 0;
+    let animationTimeSec = 0;
     let animationFrameId = null;
     let lastTickMs = 0;
     let lastRenderMs = 0;
 
     function runSelfTests() {
-      console.assert(controls.symmetry.max === '100', '対称数の最大値は100であるべきです');
+      syncSourceTurnsLimit();
+      console.assert(controls.symmetry.min === '1', '配置数は1から指定できるべきです');
+      console.assert(controls.symmetry.max === '120', '配置数は120まで指定できるべきです');
       console.assert(controls.circleSize !== null, 'circleSize スライダーが存在するべきです');
-      console.assert(controls.centerY !== null, 'centerY スライダーが存在するべきです');
-      console.assert(controls.stagger !== null, 'stagger スライダーが存在するべきです');
-      console.assert(controls.outerStableStart !== null, 'outerStableStart スライダーが存在するべきです');
-      console.assert(controls.phaseWave !== null, 'phaseWave セレクトが存在するべきです');
-      console.assert(controls.phaseRepeat !== null, 'phaseRepeat スライダーが存在するべきです');
-      console.assert(controls.phaseRepeat.min === '0', 'phaseRepeat の最小値は 0 であるべきです');
-      console.assert(repeatPhaseInputs.length === MAX_REPEAT_PHASES, '折り返し位相スライダーは16本あるべきです');
-      console.assert(controls.rotation !== null, 'rotation スライダーが存在するべきです');
-      console.assert(controls.rotationSpeed !== null, 'rotationSpeed スライダーが存在するべきです');
-      console.assert(controls.refreshRate !== null, 'refreshRate スライダーが存在するべきです');
-      console.assert(controls.rotationSpeed.min === '-720', 'rotationSpeed の最小値は -720 であるべきです');
-      console.assert(controls.rotationSpeed.max === '720', 'rotationSpeed の最大値は 720 であるべきです');
-      console.assert(savePngButton !== null, 'savePng ボタンが存在するべきです');
+      console.assert(controls.cropFill !== null, 'cropFill スライダーが存在するべきです');
+      console.assert(controls.cropFeather !== null, 'cropFeather スライダーが存在するべきです');
+      console.assert(controls.sliceAngle !== null, 'sliceAngle スライダーが存在するべきです');
+      console.assert(controls.sourceTurns !== null, 'sourceTurns スライダーが存在するべきです');
+      console.assert(controls.sourceTurns.max === controls.symmetry.value, 'sourceTurns の最大値は配置数に一致するべきです');
+      console.assert(controls.cylinderMode !== null, 'cylinderMode セレクトが存在するべきです');
+      console.assert(controls.pairPhase !== null, 'pairPhase スライダーが存在するべきです');
+      console.assert(controls.seamBlend !== null, 'seamBlend スライダーが存在するべきです');
+      console.assert(controls.playMode !== null, 'playMode セレクトが存在するべきです');
+      console.assert(controls.frameSpeed !== null, 'frameSpeed スライダーが存在するべきです');
+      console.assert(controls.frameStep !== null, 'frameStep スライダーが存在するべきです');
+      console.assert(controls.shutterWidth !== null, 'shutterWidth スライダーが存在するべきです');
+      console.assert(typeof readParams().cropFill === 'number', 'cropFill は number であるべきです');
+      console.assert(typeof readParams().cropFeather === 'number', 'cropFeather は number であるべきです');
+      console.assert(typeof readParams().sliceAngle === 'number', 'sliceAngle は number であるべきです');
+      console.assert(typeof readParams().sourceTurns === 'number', 'sourceTurns は number であるべきです');
+      console.assert(typeof readParams().cylinderMode === 'number', 'cylinderMode は number であるべきです');
       console.assert(typeof readParams().circleSize === 'number', 'circleSize は number であるべきです');
-      console.assert(typeof readParams().centerY === 'number', 'centerY は number であるべきです');
-      console.assert(typeof readParams().stagger === 'number', 'stagger は number であるべきです');
-      console.assert(typeof readParams().outerStableStart === 'number', 'outerStableStart は number であるべきです');
-      console.assert(Number.isInteger(readParams().phaseWave), 'phaseWave は integer であるべきです');
-      console.assert(Number.isInteger(readParams().phaseRepeat), 'phaseRepeat は integer であるべきです');
-      console.assert(readParams().repeatPhases.length === MAX_REPEAT_PHASES, 'repeatPhases は16個であるべきです');
+      console.assert(typeof readParams().pairPhase === 'number', 'pairPhase は number であるべきです');
+      console.assert(typeof readParams().seamBlend === 'number', 'seamBlend は number であるべきです');
+      console.assert(typeof readParams().playMode === 'number', 'playMode は number であるべきです');
+      console.assert(typeof readParams().frameSpeed === 'number', 'frameSpeed は number であるべきです');
+      console.assert(typeof readParams().frameStep === 'number', 'frameStep は number であるべきです');
+      console.assert(typeof readParams().shutterWidth === 'number', 'shutterWidth は number であるべきです');
+      console.assert(savePngButton !== null, 'savePng ボタンが存在するべきです');
       console.assert(getSquareCropRect(800, 600, 0).size === 600, '横長画面では短辺で切り抜くべきです');
       console.assert(getSquareCropRect(800, 600, 0).sx === 100, 'centerY=0 の切り抜きXは中央寄せであるべきです');
-      console.assert(getSquareCropRect(800, 600, 0).sy === 0, 'centerY=0 の切り抜きYは中央寄せであるべきです');
-      console.assert(getSquareCropRect(800, 600, 0.5).sy === 0, '上側へ寄せた切り抜きは上端でクランプされるべきです');
-      console.assert(getSquareCropRect(800, 600, -0.5).sy === 0, '十分に収まる場合は下側でも全体を維持するべきです');
-      console.assert(Number.isFinite(seed), 'seed は有限数であるべきです');
+      console.assert(Number.isFinite(sourceSeed), 'sourceSeed は有限数であるべきです');
       console.info('Self tests passed');
     }
 
@@ -517,7 +545,7 @@
       });
 
       const uniformBuffer = device.createBuffer({
-        size: 128,
+        size: 112,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
 
@@ -530,54 +558,30 @@ struct Uniforms {
   swirl: f32,
   paper: f32,
   circleSize: f32,
-  outerStableStart: f32,
   centerY: f32,
-  stagger: f32,
-  phaseWave: f32,
-  phaseRepeat: f32,
+  cropFill: f32,
+  cropFeather: f32,
+  pairPhase: f32,
+  seamBlend: f32,
   rotation: f32,
-  seed: f32,
-  pad0: f32,
+  sourceSeed: f32,
+  cylinderMode: f32,
+  sliceAngle: f32,
+  sourceTurns: f32,
+  playMode: f32,
+  frameSpeed: f32,
+  frameStep: f32,
+  shutterWidth: f32,
+  time: f32,
   pad1: f32,
-  repeatPhase0: f32,
-  repeatPhase1: f32,
-  repeatPhase2: f32,
-  repeatPhase3: f32,
-  repeatPhase4: f32,
-  repeatPhase5: f32,
-  repeatPhase6: f32,
-  repeatPhase7: f32,
-  repeatPhase8: f32,
-  repeatPhase9: f32,
-  repeatPhase10: f32,
-  repeatPhase11: f32,
-  repeatPhase12: f32,
-  repeatPhase13: f32,
-  repeatPhase14: f32,
-  repeatPhase15: f32,
+  pad2: f32,
+  pad3: f32,
+  pad4: f32,
+  pad5: f32,
+  pad6: f32,
 };
 
 @group(0) @binding(0) var<uniform> u: Uniforms;
-
-fn repeatPhaseValue(index: f32) -> f32 {
-  let i = clamp(floor(index), 0.0, 15.0);
-  if (i < 0.5) { return u.repeatPhase0; }
-  if (i < 1.5) { return u.repeatPhase1; }
-  if (i < 2.5) { return u.repeatPhase2; }
-  if (i < 3.5) { return u.repeatPhase3; }
-  if (i < 4.5) { return u.repeatPhase4; }
-  if (i < 5.5) { return u.repeatPhase5; }
-  if (i < 6.5) { return u.repeatPhase6; }
-  if (i < 7.5) { return u.repeatPhase7; }
-  if (i < 8.5) { return u.repeatPhase8; }
-  if (i < 9.5) { return u.repeatPhase9; }
-  if (i < 10.5) { return u.repeatPhase10; }
-  if (i < 11.5) { return u.repeatPhase11; }
-  if (i < 12.5) { return u.repeatPhase12; }
-  if (i < 13.5) { return u.repeatPhase13; }
-  if (i < 14.5) { return u.repeatPhase14; }
-  return u.repeatPhase15;
-}
 
 fn hash(p: vec2f) -> f32 {
   let h = dot(p, vec2f(127.1, 311.7));
@@ -611,32 +615,31 @@ fn fbm(p0: vec2f) -> f32 {
   return value;
 }
 
-fn shapePhaseWave(t: f32, wave: f32) -> f32 {
-  let x = clamp(t, 0.0, 1.0);
+fn rotate(p: vec2f, angle: f32) -> vec2f {
+  let c = cos(angle);
+  let s = sin(angle);
+  return mat2x2f(c, s, -s, c) * p;
+}
 
-  if (wave < 0.5) {
-    return x;
-  }
+fn sourceCloud(p: vec2f, seed: f32) -> f32 {
+  let radius = length(p);
+  let angle = atan2(p.y, p.x);
+  let seedOffset = vec2f(seed * 0.000001, seed * 0.0000007);
+  let basePoint = p * (2.1 + radius * 2.6);
 
-  if (wave < 1.5) {
-    return sin(x * 1.57079632679);
-  }
+  let warp = fbm(basePoint * 1.05 + seedOffset) - 0.5;
+  let cloudPoint = basePoint + vec2f(u.swirl * 0.22 * warp, -u.swirl * 0.045 * radius);
 
-  if (wave < 2.5) {
-    return x * x * (3.0 - 2.0 * x);
-  }
+  var ink = fbm(cloudPoint * 2.2 + seedOffset);
+  ink += 0.58 * fbm(cloudPoint * 5.1 - seedOffset);
 
-  if (wave < 3.5) {
-    return x * x;
-  }
+  let softRays = pow(abs(sin(angle * 4.0 + radius * 9.0 + warp * 2.0)), 5.0);
+  ink += softRays * 0.08 * smoothstep(0.12, 0.95, radius);
+  let radialMask = 1.0 - smoothstep(0.84, 1.08, radius);
+  let inkMask = smoothstep(0.40 + u.paper * 0.25, 1.08, ink * u.cloud * radialMask);
+  let edgeFade = 1.0 - smoothstep(0.95, 1.18, radius);
 
-  if (wave < 4.5) {
-    let inv = 1.0 - x;
-    return 1.0 - inv * inv;
-  }
-
-  let pulse = sin(x * 3.14159265359);
-  return x + pulse * 0.28;
+  return clamp(inkMask * edgeFade, 0.0, 0.96);
 }
 
 @vertex
@@ -659,102 +662,54 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
   var uv = (position.xy * 2.0 - u.resolution) / minResolution;
   uv.y = -uv.y;
 
-  // 画面上の固定中心。
-  // centerY がプラスなら、模様の中心は画面上側へ移動する。
   let center = vec2f(0.0, u.centerY);
-  let localUv = uv - center;
+  let localUv = rotate((uv - center) / max(0.05, u.circleSize), -u.rotation);
+  let radius = length(localUv);
+  let rawAngle = atan2(localUv.y, localUv.x);
 
-  // 固定中心との差分だけを回転させる。
-  // これにより、回転時に中心が下方向へ流れない。
-  let c = cos(u.rotation);
-  let s = sin(u.rotation);
-  uv = mat2x2f(c, -s, s, c) * localUv;
-  uv /= max(0.05, u.circleSize);
-
-  let radius = length(uv);
-  let rawAngle = atan2(uv.y, uv.x);
-
-  let symmetry = max(2.0, u.symmetry);
-  let sectorAngle = tau / symmetry;
-
-  // セクター番号を取得し、指定回数で往復する位相を作る。
-  // phaseRepeat=0 は折り返しなしで一周方向へ進む。
+  let copyCount = max(1.0, floor(u.symmetry + 0.5));
+  let sectorAngle = tau / copyCount;
   let wrappedAngle = fract((rawAngle + pi) / tau) * tau;
   let sectorIndex = floor(wrappedAngle / sectorAngle);
+  let sectorStart = sectorIndex * sectorAngle - pi;
 
-  let halfSymmetry = max(1.0, symmetry * 0.5);
-  let repeatCount = floor(u.phaseRepeat + 0.5);
-  let noRepeat = repeatCount < 0.5;
-  let turnPosition = sectorIndex / symmetry;
-  let loopPosition = wrappedAngle / tau;
-  let repeatedPosition = fract(turnPosition * max(1.0, repeatCount));
-  let repeatPhaseIndex = floor(clamp(turnPosition * max(1.0, repeatCount), 0.0, 15.999));
-  let repeatedMirror = 1.0 - abs(repeatedPosition * 2.0 - 1.0);
-  let foldedPosition = select(repeatedMirror, turnPosition, noRepeat);
-  let wavePosition = shapePhaseWave(foldedPosition, u.phaseWave) * halfSymmetry;
-  let repeatPhase = select(repeatPhaseValue(repeatPhaseIndex), u.stagger, noRepeat);
-  let phase = wavePosition * repeatPhase;
-  let foldedPhaseVec = vec2f(cos(phase), sin(phase));
-  let loopAngle = loopPosition * tau;
-  let loopPhaseVec = vec2f(cos(loopAngle), sin(loopAngle)) * max(0.0, u.stagger);
-  let phaseVec = select(foldedPhaseVec, loopPhaseVec, noRepeat);
+  // 出力側だけを固定の切り取り窓へ戻す。
+  let cropUv = rotate(localUv, -sectorStart);
+  let cropAngle = fract(atan2(cropUv.y, cropUv.x) / tau) * tau;
+  let centeredCropAngle = cropAngle - sectorAngle * 0.5;
+  let halfCrop = sectorAngle * 0.5 * clamp(u.cropFill, 0.0, 1.0);
+  let feather = sectorAngle * max(0.0001, u.cropFeather);
+  let cropMask = 1.0 - smoothstep(halfCrop, halfCrop + feather, abs(centeredCropAngle));
 
-  let foldedAngle = abs(
-    fract((rawAngle + sectorAngle * 0.5) / sectorAngle) * sectorAngle - sectorAngle * 0.5
-  );
-
-  let folded = vec2f(cos(foldedAngle), sin(foldedAngle)) * radius;
-  let seedOffset = vec2f(u.seed * 0.000001, u.seed * 0.0000007);
-
-  let basePoint = folded * (2.1 + radius * 2.6);
-
-  let outerStableStart = clamp(u.outerStableStart, 0.2, 1.0);
-  let stableMix = smoothstep(0.12, outerStableStart, radius);
-  let phaseFalloff = 1.0 - stableMix;
-  let anchoredPhase = phase * phaseFalloff;
-  let anchoredPhaseVec = phaseVec * phaseFalloff;
-
-  // 中間域は従来の位相オフセット、外側は角度方向の安定位相へ寄せる。
-  let unstableOffset1 = anchoredPhaseVec * 0.20;
-  let unstableOffset2 = vec2f(anchoredPhaseVec.y, -anchoredPhaseVec.x) * 0.14;
-
-  let phaseAngle = anchoredPhase * 0.18;
-  let pc = cos(phaseAngle);
-  let ps = sin(phaseAngle);
-  let rotatedPhasePoint = mat2x2f(pc, -ps, ps, pc) * basePoint;
-  let loopPhasePoint = basePoint + anchoredPhaseVec * 0.18;
-  let phasedPoint = select(rotatedPhasePoint, loopPhasePoint, noRepeat);
-  let stableOffset = anchoredPhaseVec * 0.07;
-
-  let unstableWarp = fbm(basePoint * 1.05 + seedOffset + unstableOffset1);
-  let stableWarp = fbm(phasedPoint * 1.05 + seedOffset + stableOffset);
-  let warp = mix(unstableWarp, stableWarp, stableMix) - 0.5;
-
-  let flow = vec2f(u.swirl * warp, -u.swirl * 0.18 * radius);
-  let unstableCloudPoint = basePoint + flow + unstableOffset2 * 0.35;
-  let stableCloudPoint = basePoint + flow + (phasedPoint - basePoint) * 0.18;
-  let cloudPoint = mix(unstableCloudPoint, stableCloudPoint, stableMix);
-
-  let unstableInk = fbm(cloudPoint * 2.2 + seedOffset + unstableOffset1)
-    + 0.58 * fbm(cloudPoint * 5.1 - seedOffset + unstableOffset2);
-  let stableInk = fbm(cloudPoint * 2.2 + seedOffset + stableOffset)
-    + 0.58 * fbm(phasedPoint * 5.1 - seedOffset + stableOffset.yx);
-  var ink = mix(unstableInk, stableInk, stableMix);
-
-  let radialRays = pow(abs(sin(foldedAngle * 5.5 + radius * 12.0 + warp * 2.0)), 5.0);
-  ink += radialRays * 0.24 * smoothstep(0.12, 0.95, radius);
-
-  let radialMask = 1.0 - smoothstep(0.82, 1.08, radius);
-  ink *= radialMask;
-
-  let inkMask = smoothstep(0.40 + u.paper * 0.25, 1.08, ink * u.cloud);
+  // 円柱は静的な生成元としてだけ使い、最終的な回転は localUv 側で行う。
+  let sliceSlope = tan(clamp(u.sliceAngle, -1.3962634, 1.3962634));
+  let tiltedCenteredAngle = centeredCropAngle + (clamp(radius, 0.0, 1.2) - 0.5) * sliceSlope * sectorAngle * 0.72;
+  let tiltedCropAngle = tiltedCenteredAngle + sectorAngle * 0.5;
+  let tiltedCropUv = vec2f(cos(tiltedCropAngle), sin(tiltedCropAngle)) * radius;
+  let frameIndex = floor(u.time * max(0.0, u.frameSpeed));
+  let frameOffset = select(0.0, frameIndex * u.frameStep, u.playMode > 0.5);
+  let sourceTurn = (sectorIndex + frameOffset) * sectorAngle * u.sourceTurns;
+  let singleSourceUv = rotate(tiltedCropUv, sourceTurn);
+  let leftSourceUv = singleSourceUv;
+  let rightMirrorUv = vec2f(tiltedCropUv.x, -tiltedCropUv.y);
+  let rightSourceUv = rotate(rightMirrorUv, sourceTurn + u.pairPhase);
+  let singleInk = sourceCloud(singleSourceUv, u.sourceSeed);
+  let leftInk = sourceCloud(leftSourceUv, u.sourceSeed);
+  let rightInk = sourceCloud(rightSourceUv, u.sourceSeed);
+  let seamWidth = sectorAngle * max(0.0001, u.seamBlend);
+  let sideMix = smoothstep(-seamWidth, seamWidth, centeredCropAngle);
+  let twoCylinderInk = mix(leftInk, rightInk, sideMix);
+  let edgeFade = 1.0 - smoothstep(0.96, 1.12, radius);
+  let inkBody = select(singleInk, twoCylinderInk, u.cylinderMode > 1.5);
+  let shutterHalf = sectorAngle * 0.5 * clamp(u.shutterWidth, 0.0, 1.0);
+  let shutterFeather = sectorAngle * 0.025;
+  let shutterMask = 1.0 - smoothstep(shutterHalf, shutterHalf + shutterFeather, abs(centeredCropAngle));
+  let playMask = select(1.0, shutterMask, u.playMode > 0.5);
+  let ink = inkBody * cropMask * playMask * edgeFade;
 
   let paperColor = vec3f(0.0, 0.0, 0.0);
   let inkColor = vec3f(1.0, 1.0, 1.0);
-
-  let edgeFade = 1.0 - smoothstep(0.95, 1.18, radius);
-  let mixAmount = clamp(inkMask * edgeFade, 0.0, 0.95);
-  let color = mix(paperColor, inkColor, mixAmount);
+  let color = mix(paperColor, inkColor, ink);
 
   return vec4f(color, 1.0);
 }
@@ -787,7 +742,6 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         primitive: { topology: 'triangle-list' },
       });
 
-      // PNG保存用に rgba8unorm 固定パイプライン（読み取り保証のため）
       const savePipeline = device.createRenderPipeline({
         layout: pipelineLayout,
         vertex: { module: cloudShader, entryPoint: 'vs' },
@@ -823,16 +777,27 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
           params.swirl,
           params.paper,
           params.circleSize,
-          params.outerStableStart,
           params.centerY,
-          params.stagger,
-          params.phaseWave,
-          params.phaseRepeat,
+          params.cropFill,
+          params.cropFeather,
+          params.pairPhase * Math.PI / 180,
+          params.seamBlend,
           rotationRad,
-          seed,
+          sourceSeed,
+          params.cylinderMode,
+          params.sliceAngle * Math.PI / 180,
+          params.sourceTurns,
+          params.playMode,
+          params.frameSpeed,
+          params.frameStep,
+          params.shutterWidth,
+          animationTimeSec,
           0,
           0,
-          ...params.repeatPhases,
+          0,
+          0,
+          0,
+          0,
         ]);
 
         device.queue.writeBuffer(uniformBuffer, 0, data);
@@ -872,14 +837,12 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         const w = canvas.width;
         const h = canvas.height;
 
-        // オフスクリーンテクスチャ（rgba8unorm 固定でピクセル読み取りを保証）
         const offTex = device.createTexture({
           size: [w, h],
           format: 'rgba8unorm',
           usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
         });
 
-        // copyTextureToBuffer は bytesPerRow が 256 の倍数である必要がある
         const bytesPerRow = Math.ceil(w * 4 / 256) * 256;
         const readBuf = device.createBuffer({
           size: bytesPerRow * h,
@@ -887,7 +850,6 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         });
 
         const encoder = device.createCommandEncoder();
-
         const pass = encoder.beginRenderPass({
           colorAttachments: [{
             view: offTex.createView(),
@@ -896,6 +858,7 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
             storeOp: 'store',
           }],
         });
+
         pass.setBindGroup(0, bindGroup);
         pass.setPipeline(savePipeline);
         pass.draw(3);
@@ -910,7 +873,6 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
 
         await readBuf.mapAsync(GPUMapMode.READ);
         const raw = new Uint8Array(readBuf.getMappedRange());
-
         const { sx, sy, size } = getSquareCropRect(w, h, params.centerY);
         const exportCanvas = document.createElement('canvas');
         exportCanvas.width = size;
@@ -926,7 +888,7 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
           for (let col = 0; col < size; col++) {
             const src = (sy + row) * bytesPerRow + (sx + col) * 4;
             const dst = (row * size + col) * 4;
-            imgData.data[dst]     = raw[src];
+            imgData.data[dst] = raw[src];
             imgData.data[dst + 1] = raw[src + 1];
             imgData.data[dst + 2] = raw[src + 2];
             imgData.data[dst + 3] = raw[src + 3];
@@ -936,7 +898,6 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         readBuf.unmap();
         readBuf.destroy();
         offTex.destroy();
-
         exportContext.putImageData(imgData, 0, 0);
 
         const blob = await new Promise((resolve, reject) => {
@@ -953,44 +914,42 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         const link = document.createElement('a');
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         link.href = url;
-        link.download = `ink-cloud-square-${timestamp}.png`;
+        link.download = `cylinder-cloud-pattern-${timestamp}.png`;
         link.click();
         URL.revokeObjectURL(url);
       }
 
       function animationLoop(nowMs) {
-        if (lastTickMs === 0) lastTickMs = nowMs;
-        if (lastRenderMs === 0) lastRenderMs = nowMs;
+      if (lastTickMs === 0) lastTickMs = nowMs;
+      if (lastRenderMs === 0) lastRenderMs = nowMs;
 
-        const params = readParams();
-        const deltaMs = nowMs - lastTickMs;
-        lastTickMs = nowMs;
+      const params = readParams();
+      const deltaMs = nowMs - lastTickMs;
+      lastTickMs = nowMs;
+      animationTimeSec += deltaMs / 1000;
 
-        if (params.autoRotate) {
-          spinOffsetDeg += params.rotationSpeed * (deltaMs / 1000);
+      const shouldAnimateFrames = params.playMode > 0 && params.frameSpeed > 0;
+      const shouldRotate = params.autoRotate && params.rotationSpeed !== 0;
 
-          const frameIntervalMs = 1000 / Math.max(1, params.refreshRate);
+      if (shouldRotate) {
+        spinOffsetDeg += params.rotationSpeed * (deltaMs / 1000);
+      }
 
-          if (nowMs - lastRenderMs >= frameIntervalMs) {
-            render();
-            lastRenderMs = nowMs;
-          }
-        } else {
+      if (shouldRotate || shouldAnimateFrames) {
+        const frameIntervalMs = 1000 / Math.max(1, params.refreshRate);
+
+        if (nowMs - lastRenderMs >= frameIntervalMs) {
+          render();
           lastRenderMs = nowMs;
         }
-
-        animationFrameId = requestAnimationFrame(animationLoop);
+      } else {
+        lastRenderMs = nowMs;
       }
+
+      animationFrameId = requestAnimationFrame(animationLoop);
+    }
 
       for (const input of Object.values(controls)) {
-        input.addEventListener('input', () => {
-          syncLabels();
-          saveSettings();
-          render();
-        });
-      }
-
-      for (const { input } of repeatPhaseInputs) {
         input.addEventListener('input', () => {
           syncLabels();
           saveSettings();
@@ -1005,12 +964,13 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
       });
 
       rerollButton.addEventListener('click', () => {
-        seed = Math.floor(Math.random() * 1_000_000_000);
+        sourceSeed = Math.floor(Math.random() * 1_000_000_000);
         render();
       });
 
       resetSpinButton.addEventListener('click', () => {
         spinOffsetDeg = 0;
+        animationTimeSec = 0;
         render();
       });
 

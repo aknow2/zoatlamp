@@ -89,6 +89,22 @@
       display: inline;
     }
 
+    .repeatPhaseControls {
+      margin: 8px 0 14px;
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .repeatPhaseControls[hidden] {
+      display: none;
+    }
+
+    .repeatPhaseControls label {
+      margin: 10px 0;
+    }
+
     button {
       width: 100%;
       border: 1px solid rgba(255, 255, 255, 0.16);
@@ -168,6 +184,12 @@
     </label>
 
     <label>
+      円のサイズ
+      <span class="value" id="circleSizeValue"></span>
+      <input id="circleSize" type="range" min="0.2" max="1.8" step="0.01" value="1">
+    </label>
+
+    <label>
       雲の渦
       <span class="value" id="swirlValue"></span>
       <input id="swirl" type="range" min="0" max="100" step="0.01" value="7">
@@ -188,7 +210,13 @@
     <label>
       位相ずれ
       <span class="value" id="staggerValue"></span>
-      <input id="stagger" type="range" min="0" max="2" step="0.01" value="0.1">
+      <input id="stagger" type="range" min="-2" max="2" step="0.01" value="0.1">
+    </label>
+
+    <label>
+      外側固定開始
+      <span class="value" id="outerStableStartValue"></span>
+      <input id="outerStableStart" type="range" min="0.2" max="1" step="0.01" value="0.88">
     </label>
 
     <label>
@@ -207,8 +235,10 @@
     <label>
       折り返し数
       <span class="value" id="phaseRepeatValue"></span>
-      <input id="phaseRepeat" type="range" min="1" max="16" step="1" value="1">
+      <input id="phaseRepeat" type="range" min="0" max="16" step="1" value="1">
     </label>
+
+    <div class="repeatPhaseControls" id="repeatPhaseControls"></div>
 
     <label>
       初期回転（度）
@@ -219,6 +249,11 @@
     <div class="checkRow">
       <input id="autoRotate" type="checkbox" checked>
       <label for="autoRotate">自動回転</label>
+    </div>
+
+    <div class="checkRow">
+      <input id="visualCenter" type="checkbox" checked>
+      <label for="visualCenter">見た目の重心を中央補正</label>
     </div>
 
     <label>
@@ -240,8 +275,10 @@
     <div class="note">
       中心Y位置はプラスにすると上へ、マイナスにすると下へ移動します。<br>
       位相ずれは、対称セクターごとの模様のズレ量です。<br>
+      外側固定開始は、この半径より外側で位相差を固定する位置です。<br>
       往復波形は、一周内で位相ずれが戻るカーブです。<br>
-      折り返し数は、一周内で位相ずれが往復する回数です。<br>
+      折り返し数は、0 で折り返しなし、1以上で一周内の往復回数です。<br>
+      折り返し数が1以上の時は、折り返しごとの位相スライダーを使います。<br>
       回転スピードは -720 ～ 720 deg/sec で設定できます。<br>
       マイナスにすると逆回転します。<br>
       PNG保存では、現在の中心位置を基準に正方形で切り抜いて保存します。
@@ -263,10 +300,12 @@
     const controlIds = [
       'symmetry',
       'cloud',
+      'circleSize',
       'swirl',
       'paper',
       'centerY',
       'stagger',
+      'outerStableStart',
       'phaseWave',
       'phaseRepeat',
       'rotation',
@@ -275,6 +314,7 @@
     ];
 
     const phaseWaveLabels = ['線形', 'サイン', 'スムーズ', '加速', '減速', 'パルス'];
+    const MAX_REPEAT_PHASES = 16;
 
     const controls = Object.fromEntries(
       controlIds.map((id) => [id, document.getElementById(id)])
@@ -285,25 +325,76 @@
     );
 
     const autoRotateEl = document.getElementById('autoRotate');
+    const visualCenterEl = document.getElementById('visualCenter');
     const rerollButton = document.getElementById('reroll');
     const resetSpinButton = document.getElementById('resetSpin');
     const savePngButton = document.getElementById('savePng');
+    const repeatPhaseControlsEl = document.getElementById('repeatPhaseControls');
+    const repeatPhaseInputs = Array.from({ length: MAX_REPEAT_PHASES }, (_, index) => {
+      const label = document.createElement('label');
+      const text = document.createTextNode(`折り返し${index + 1} 位相 `);
+      const value = document.createElement('span');
+      const input = document.createElement('input');
+
+      value.className = 'value';
+      input.type = 'range';
+      input.min = '-2';
+      input.max = '2';
+      input.step = '0.01';
+      input.value = controls.stagger.value;
+
+      label.append(text, value, input);
+      repeatPhaseControlsEl.append(label);
+
+      return { input, label, value };
+    });
+
+    const visualCenterParamIds = new Set([
+      'symmetry',
+      'cloud',
+      'circleSize',
+      'swirl',
+      'paper',
+      'stagger',
+      'outerStableStart',
+      'phaseWave',
+      'phaseRepeat',
+    ]);
+
+    function readRepeatPhases() {
+      return repeatPhaseInputs.map(({ input }) => Number(input.value));
+    }
 
     function readParams() {
       return {
         symmetry: Number(controls.symmetry.value),
         cloud: Number(controls.cloud.value),
+        circleSize: Number(controls.circleSize.value),
         swirl: Number(controls.swirl.value),
         paper: Number(controls.paper.value),
         centerY: Number(controls.centerY.value),
         stagger: Number(controls.stagger.value),
+        outerStableStart: Number(controls.outerStableStart.value),
         phaseWave: Number(controls.phaseWave.value),
         phaseRepeat: Number(controls.phaseRepeat.value),
         rotation: Number(controls.rotation.value),
         rotationSpeed: Number(controls.rotationSpeed.value),
         refreshRate: Number(controls.refreshRate.value),
         autoRotate: autoRotateEl.checked,
+        visualCenter: visualCenterEl.checked,
+        repeatPhases: readRepeatPhases(),
       };
+    }
+
+    function syncRepeatPhaseControls(params) {
+      const repeatCount = Math.max(0, Math.min(MAX_REPEAT_PHASES, Math.round(params.phaseRepeat)));
+      repeatPhaseControlsEl.hidden = repeatCount < 1;
+
+      repeatPhaseInputs.forEach(({ label, value, input }, index) => {
+        const visible = index < repeatCount;
+        label.hidden = !visible;
+        value.textContent = Number(input.value).toFixed(2);
+      });
     }
 
     function syncLabels() {
@@ -311,15 +402,18 @@
 
       valueEls.symmetry.textContent = String(params.symmetry);
       valueEls.cloud.textContent = params.cloud.toFixed(2);
+      valueEls.circleSize.textContent = params.circleSize.toFixed(2);
       valueEls.swirl.textContent = params.swirl.toFixed(2);
       valueEls.paper.textContent = params.paper.toFixed(2);
       valueEls.centerY.textContent = params.centerY.toFixed(2);
       valueEls.stagger.textContent = params.stagger.toFixed(2);
+      valueEls.outerStableStart.textContent = `${Math.round(params.outerStableStart * 100)}%`;
       valueEls.phaseWave.textContent = phaseWaveLabels[params.phaseWave] ?? '線形';
       valueEls.phaseRepeat.textContent = `${params.phaseRepeat}回`;
       valueEls.rotation.textContent = `${Math.round(params.rotation)}°`;
       valueEls.rotationSpeed.textContent = `${Math.round(params.rotationSpeed)}°/s`;
       valueEls.refreshRate.textContent = `${Math.round(params.refreshRate)} FPS`;
+      syncRepeatPhaseControls(params);
     }
 
     const STORAGE_KEY = 'inkCloud_settings_v1';
@@ -330,6 +424,8 @@
         data[id] = controls[id].value;
       }
       data.autoRotate = autoRotateEl.checked;
+      data.visualCenter = visualCenterEl.checked;
+      data.repeatPhases = readRepeatPhases();
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       } catch (_) {
@@ -354,6 +450,16 @@
       if (data.autoRotate != null) {
         autoRotateEl.checked = data.autoRotate;
       }
+      if (data.visualCenter != null) {
+        visualCenterEl.checked = data.visualCenter;
+      }
+      if (Array.isArray(data.repeatPhases)) {
+        repeatPhaseInputs.forEach(({ input }, index) => {
+          if (data.repeatPhases[index] != null) {
+            input.value = data.repeatPhases[index];
+          }
+        });
+      }
     }
 
     loadSettings();
@@ -363,23 +469,33 @@
     let animationFrameId = null;
     let lastTickMs = 0;
     let lastRenderMs = 0;
+    let visualOffset = { x: 0, y: 0 };
+    let visualCenterTimerId = null;
+    let visualCenterRequestId = 0;
 
     function runSelfTests() {
       console.assert(controls.symmetry.max === '100', '対称数の最大値は100であるべきです');
+      console.assert(controls.circleSize !== null, 'circleSize スライダーが存在するべきです');
       console.assert(controls.centerY !== null, 'centerY スライダーが存在するべきです');
       console.assert(controls.stagger !== null, 'stagger スライダーが存在するべきです');
+      console.assert(controls.outerStableStart !== null, 'outerStableStart スライダーが存在するべきです');
       console.assert(controls.phaseWave !== null, 'phaseWave セレクトが存在するべきです');
       console.assert(controls.phaseRepeat !== null, 'phaseRepeat スライダーが存在するべきです');
+      console.assert(controls.phaseRepeat.min === '0', 'phaseRepeat の最小値は 0 であるべきです');
+      console.assert(repeatPhaseInputs.length === MAX_REPEAT_PHASES, '折り返し位相スライダーは16本あるべきです');
       console.assert(controls.rotation !== null, 'rotation スライダーが存在するべきです');
       console.assert(controls.rotationSpeed !== null, 'rotationSpeed スライダーが存在するべきです');
       console.assert(controls.refreshRate !== null, 'refreshRate スライダーが存在するべきです');
       console.assert(controls.rotationSpeed.min === '-720', 'rotationSpeed の最小値は -720 であるべきです');
       console.assert(controls.rotationSpeed.max === '720', 'rotationSpeed の最大値は 720 であるべきです');
       console.assert(savePngButton !== null, 'savePng ボタンが存在するべきです');
+      console.assert(typeof readParams().circleSize === 'number', 'circleSize は number であるべきです');
       console.assert(typeof readParams().centerY === 'number', 'centerY は number であるべきです');
       console.assert(typeof readParams().stagger === 'number', 'stagger は number であるべきです');
+      console.assert(typeof readParams().outerStableStart === 'number', 'outerStableStart は number であるべきです');
       console.assert(Number.isInteger(readParams().phaseWave), 'phaseWave は integer であるべきです');
       console.assert(Number.isInteger(readParams().phaseRepeat), 'phaseRepeat は integer であるべきです');
+      console.assert(readParams().repeatPhases.length === MAX_REPEAT_PHASES, 'repeatPhases は16個であるべきです');
       console.assert(getSquareCropRect(800, 600, 0).size === 600, '横長画面では短辺で切り抜くべきです');
       console.assert(getSquareCropRect(800, 600, 0).sx === 100, 'centerY=0 の切り抜きXは中央寄せであるべきです');
       console.assert(getSquareCropRect(800, 600, 0).sy === 0, 'centerY=0 の切り抜きYは中央寄せであるべきです');
@@ -427,7 +543,7 @@
       });
 
       const uniformBuffer = device.createBuffer({
-        size: 64,
+        size: 144,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
 
@@ -439,18 +555,59 @@ struct Uniforms {
   cloud: f32,
   swirl: f32,
   paper: f32,
+  circleSize: f32,
+  outerStableStart: f32,
   centerY: f32,
   stagger: f32,
   phaseWave: f32,
   phaseRepeat: f32,
   rotation: f32,
   seed: f32,
-  pad0: f32,
-  pad1: f32,
+  visualOffsetX: f32,
+  visualOffsetY: f32,
   pad2: f32,
+  pad3: f32,
+  pad4: f32,
+  repeatPhase0: f32,
+  repeatPhase1: f32,
+  repeatPhase2: f32,
+  repeatPhase3: f32,
+  repeatPhase4: f32,
+  repeatPhase5: f32,
+  repeatPhase6: f32,
+  repeatPhase7: f32,
+  repeatPhase8: f32,
+  repeatPhase9: f32,
+  repeatPhase10: f32,
+  repeatPhase11: f32,
+  repeatPhase12: f32,
+  repeatPhase13: f32,
+  repeatPhase14: f32,
+  repeatPhase15: f32,
+  pad5: f32,
 };
 
 @group(0) @binding(0) var<uniform> u: Uniforms;
+
+fn repeatPhaseValue(index: f32) -> f32 {
+  let i = clamp(floor(index), 0.0, 15.0);
+  if (i < 0.5) { return u.repeatPhase0; }
+  if (i < 1.5) { return u.repeatPhase1; }
+  if (i < 2.5) { return u.repeatPhase2; }
+  if (i < 3.5) { return u.repeatPhase3; }
+  if (i < 4.5) { return u.repeatPhase4; }
+  if (i < 5.5) { return u.repeatPhase5; }
+  if (i < 6.5) { return u.repeatPhase6; }
+  if (i < 7.5) { return u.repeatPhase7; }
+  if (i < 8.5) { return u.repeatPhase8; }
+  if (i < 9.5) { return u.repeatPhase9; }
+  if (i < 10.5) { return u.repeatPhase10; }
+  if (i < 11.5) { return u.repeatPhase11; }
+  if (i < 12.5) { return u.repeatPhase12; }
+  if (i < 13.5) { return u.repeatPhase13; }
+  if (i < 14.5) { return u.repeatPhase14; }
+  return u.repeatPhase15;
+}
 
 fn hash(p: vec2f) -> f32 {
   let h = dot(p, vec2f(127.1, 311.7));
@@ -542,6 +699,8 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let c = cos(u.rotation);
   let s = sin(u.rotation);
   uv = mat2x2f(c, -s, s, c) * localUv;
+  uv /= max(0.05, u.circleSize);
+  uv += vec2f(u.visualOffsetX, u.visualOffsetY);
 
   let radius = length(uv);
   let rawAngle = atan2(uv.y, uv.x);
@@ -554,14 +713,23 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let sectorIndex = floor(wrappedAngle / sectorAngle);
 
   // 模様自体は時間変化させず、折り返し値に波形をかけて静的な位相差を与える。
+  // phaseRepeat=0 は折り返しなしで一周方向へ進む。
   let halfSymmetry = max(1.0, symmetry * 0.5);
-  let repeatCount = max(1.0, floor(u.phaseRepeat + 0.5));
+  let repeatCount = floor(u.phaseRepeat + 0.5);
+  let noRepeat = repeatCount < 0.5;
   let turnPosition = sectorIndex / symmetry;
-  let repeatedPosition = fract(turnPosition * repeatCount);
+  let loopPosition = wrappedAngle / tau;
+  let repeatedPosition = fract(turnPosition * max(1.0, repeatCount));
+  let repeatPhaseIndex = floor(clamp(turnPosition * max(1.0, repeatCount), 0.0, 15.999));
   let repeatedMirror = 1.0 - abs(repeatedPosition * 2.0 - 1.0);
-  let wavePosition = shapePhaseWave(repeatedMirror, u.phaseWave) * halfSymmetry;
-  let phase = wavePosition * u.stagger;
-  let phaseVec = vec2f(cos(phase), sin(phase));
+  let foldedPosition = select(repeatedMirror, turnPosition, noRepeat);
+  let wavePosition = shapePhaseWave(foldedPosition, u.phaseWave) * halfSymmetry;
+  let repeatPhase = select(repeatPhaseValue(repeatPhaseIndex), u.stagger, noRepeat);
+  let phase = wavePosition * repeatPhase;
+  let foldedPhaseVec = vec2f(cos(phase), sin(phase));
+  let loopAngle = loopPosition * tau;
+  let loopPhaseVec = vec2f(cos(loopAngle), sin(loopAngle)) * max(0.0, u.stagger);
+  let phaseVec = select(foldedPhaseVec, loopPhaseVec, noRepeat);
 
   let foldedAngle = abs(
     fract((rawAngle + sectorAngle * 0.5) / sectorAngle) * sectorAngle - sectorAngle * 0.5
@@ -572,10 +740,14 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
 
   let basePoint = folded * (2.1 + radius * 2.6);
 
-  // 位相ずれはノイズ座標を少しずらして表現する。
-  // 時間は使わないため、模様が下へ流れることはない。
-  let phaseOffset1 = phaseVec * 0.20;
-  let phaseOffset2 = vec2f(phaseVec.y, -phaseVec.x) * 0.14;
+  // 外周では位相オフセットを 0 にして、どの位相でも同じ外側の模様を読む。
+  // 中心へ向かうほど指定 phase に戻るため、内側だけが伸びる。
+  let stableStart = clamp(u.outerStableStart, 0.2, 1.0);
+  let phaseFalloff = 1.0 - smoothstep(0.12, stableStart, clamp(radius, 0.0, 1.0));
+  let anchoredPhaseVec = phaseVec * phaseFalloff;
+
+  let phaseOffset1 = anchoredPhaseVec * 0.20;
+  let phaseOffset2 = vec2f(anchoredPhaseVec.y, -anchoredPhaseVec.x) * 0.14;
 
   let warp = fbm(basePoint * 1.05 + seedOffset + phaseOffset1) - 0.5;
 
@@ -656,29 +828,164 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         return params.rotation + spinOffsetDeg;
       }
 
-      function updateUniforms() {
-        const params = readParams();
-        const rotationRad = getCurrentRotationDeg() * Math.PI / 180;
+      function updateUniforms(options = {}) {
+        const params = options.params ?? readParams();
+        const rotationDeg = options.rotationDeg ?? getCurrentRotationDeg();
+        const rotationRad = rotationDeg * Math.PI / 180;
+        const width = options.width ?? canvas.width;
+        const height = options.height ?? canvas.height;
+        const offset = options.visualOffset ?? visualOffset;
 
         const data = new Float32Array([
-          canvas.width,
-          canvas.height,
+          width,
+          height,
           params.symmetry,
           params.cloud,
           params.swirl,
           params.paper,
-          params.centerY,
+          params.circleSize,
+          params.outerStableStart,
+          options.centerY ?? params.centerY,
           params.stagger,
           params.phaseWave,
           params.phaseRepeat,
           rotationRad,
           seed,
+          offset.x,
+          offset.y,
           0,
           0,
+          0,
+          ...params.repeatPhases,
           0,
         ]);
 
         device.queue.writeBuffer(uniformBuffer, 0, data);
+      }
+
+      async function estimateVisualOffset(params) {
+        const sampleMinSize = 192;
+        const canvasAspect = Math.max(0.25, Math.min(4, canvas.width / Math.max(1, canvas.height)));
+        const sampleWidth = canvasAspect >= 1
+          ? Math.round(sampleMinSize * canvasAspect)
+          : sampleMinSize;
+        const sampleHeight = canvasAspect >= 1
+          ? sampleMinSize
+          : Math.round(sampleMinSize / canvasAspect);
+        const sampleMinResolution = Math.min(sampleWidth, sampleHeight);
+        const bytesPerRow = Math.ceil(sampleWidth * 4 / 256) * 256;
+
+        const offTex = device.createTexture({
+          size: [sampleWidth, sampleHeight],
+          format: 'rgba8unorm',
+          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+        });
+
+        const readBuf = device.createBuffer({
+          size: bytesPerRow * sampleHeight,
+          usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        });
+
+        updateUniforms({
+          params,
+          width: sampleWidth,
+          height: sampleHeight,
+          centerY: 0,
+          rotationDeg: 0,
+          visualOffset: { x: 0, y: 0 },
+        });
+
+        const encoder = device.createCommandEncoder();
+        const pass = encoder.beginRenderPass({
+          colorAttachments: [{
+            view: offTex.createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          }],
+        });
+        pass.setBindGroup(0, bindGroup);
+        pass.setPipeline(savePipeline);
+        pass.draw(3);
+        pass.end();
+
+        encoder.copyTextureToBuffer(
+          { texture: offTex },
+          { buffer: readBuf, bytesPerRow },
+          [sampleWidth, sampleHeight],
+        );
+        device.queue.submit([encoder.finish()]);
+
+        await readBuf.mapAsync(GPUMapMode.READ);
+        const raw = new Uint8Array(readBuf.getMappedRange());
+        const invCircleSize = 1 / Math.max(0.05, params.circleSize);
+
+        let total = 0;
+        let sumX = 0;
+        let sumY = 0;
+
+        for (let row = 0; row < sampleHeight; row++) {
+          for (let col = 0; col < sampleWidth; col++) {
+            const src = row * bytesPerRow + col * 4;
+            const weight = raw[src] + raw[src + 1] + raw[src + 2];
+            if (weight <= 0) continue;
+
+            const x = (((col + 0.5) * 2 - sampleWidth) / sampleMinResolution) * invCircleSize;
+            const y = -((((row + 0.5) * 2 - sampleHeight) / sampleMinResolution) * invCircleSize);
+
+            total += weight;
+            sumX += x * weight;
+            sumY += y * weight;
+          }
+        }
+
+        readBuf.unmap();
+        readBuf.destroy();
+        offTex.destroy();
+
+        if (total <= 0) {
+          return { x: 0, y: 0 };
+        }
+
+        return {
+          x: Math.max(-0.5, Math.min(0.5, sumX / total)),
+          y: Math.max(-0.5, Math.min(0.5, sumY / total)),
+        };
+      }
+
+      function scheduleVisualCenterUpdate() {
+        visualCenterRequestId++;
+
+        if (visualCenterTimerId !== null) {
+          clearTimeout(visualCenterTimerId);
+        }
+
+        if (!readParams().visualCenter) {
+          visualOffset = { x: 0, y: 0 };
+          render();
+          return;
+        }
+
+        const requestId = visualCenterRequestId;
+
+        visualCenterTimerId = setTimeout(async () => {
+          visualCenterTimerId = null;
+
+          try {
+            const nextOffset = await estimateVisualOffset(readParams());
+
+            if (requestId !== visualCenterRequestId) {
+              return;
+            }
+
+            visualOffset = nextOffset;
+            render();
+          } catch (err) {
+            console.error(err);
+            visualOffset = { x: 0, y: 0 };
+            render();
+          }
+        }, 80);
       }
 
       function render() {
@@ -829,6 +1136,18 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         input.addEventListener('input', () => {
           syncLabels();
           saveSettings();
+          if (visualCenterParamIds.has(input.id)) {
+            scheduleVisualCenterUpdate();
+          }
+          render();
+        });
+      }
+
+      for (const { input } of repeatPhaseInputs) {
+        input.addEventListener('input', () => {
+          syncLabels();
+          saveSettings();
+          scheduleVisualCenterUpdate();
           render();
         });
       }
@@ -839,9 +1158,15 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
         render();
       });
 
+      visualCenterEl.addEventListener('change', () => {
+        syncLabels();
+        saveSettings();
+        scheduleVisualCenterUpdate();
+      });
+
       rerollButton.addEventListener('click', () => {
         seed = Math.floor(Math.random() * 1_000_000_000);
-        render();
+        scheduleVisualCenterUpdate();
       });
 
       resetSpinButton.addEventListener('click', () => {
@@ -864,6 +1189,7 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
       runSelfTests();
       resize();
       syncLabels();
+      scheduleVisualCenterUpdate();
       render();
 
       animationFrameId = requestAnimationFrame(animationLoop);

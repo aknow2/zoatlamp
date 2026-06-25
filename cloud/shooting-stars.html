@@ -1,0 +1,979 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rotating Shooting Star Zoetrope</title>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #000000;
+      color: #f5f5f5;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      background: #000000;
+    }
+
+    aside {
+      height: 100vh;
+      max-height: 100vh;
+      min-height: 0;
+      padding: 18px;
+      background: rgba(18, 18, 18, 0.94);
+      border-right: 1px solid rgba(255, 255, 255, 0.13);
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0 0 8px;
+      letter-spacing: 0.02em;
+    }
+
+    p {
+      margin: 0 0 18px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: rgba(245, 245, 245, 0.72);
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      margin: 14px 0;
+      font-size: 12px;
+      color: rgba(245, 245, 245, 0.88);
+    }
+
+    input[type="range"],
+    select {
+      width: 100%;
+    }
+
+    select {
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: #242424;
+      color: #f5f5f5;
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    .checkRow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 16px 0 8px;
+      font-size: 13px;
+      color: rgba(245, 245, 245, 0.92);
+    }
+
+    .checkRow label {
+      display: inline;
+      margin: 0;
+    }
+
+    button {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: #242424;
+      color: #f5f5f5;
+      border-radius: 8px;
+      padding: 11px 12px;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+
+    button:hover { background: #303030; }
+
+    main {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      width: 100%;
+      height: 100vh;
+      overflow: hidden;
+      background: #000000;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #000000;
+    }
+
+    .value {
+      float: right;
+      opacity: 0.7;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .note {
+      font-size: 11px;
+      opacity: 0.7;
+      line-height: 1.5;
+      margin-top: 10px;
+      padding-bottom: 24px;
+    }
+
+    @media (max-width: 760px) {
+      body {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+      }
+
+      aside {
+        height: auto;
+        max-height: 44vh;
+        border-right: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.13);
+      }
+
+      main { height: 56vh; }
+    }
+  </style>
+</head>
+
+<body>
+  <aside>
+    <h1>流れ星ゾートロープ</h1>
+    <p>
+      分割した各セクターを流れ星のコマとして円形に配置します。<br>
+      円盤全体を回転させると、下方向へ流れる白い流れ星の連続フレームになります。
+    </p>
+
+    <label>
+      分割数
+      <span class="value" id="divisionsValue"></span>
+      <input id="divisions" type="range" min="3" max="120" step="1" value="24">
+    </label>
+
+    <label>
+      流れ星の数
+      <span class="value" id="starCountValue"></span>
+      <input id="starCount" type="range" min="1" max="80" step="1" value="18">
+    </label>
+
+    <label>
+      尾の長さ
+      <span class="value" id="trailLengthValue"></span>
+      <input id="trailLength" type="range" min="0.04" max="0.34" step="0.01" value="0.18">
+    </label>
+
+    <label>
+      星の太さ
+      <span class="value" id="starSizeValue"></span>
+      <input id="starSize" type="range" min="0.4" max="3.2" step="0.1" value="1.4">
+    </label>
+
+    <label>
+      流れるコマ数
+      <span class="value" id="lifeFramesValue"></span>
+      <input id="lifeFrames" type="range" min="2" max="64" step="1" value="6">
+    </label>
+
+    <label>
+      落下カーブ
+      <span class="value" id="motionCurveValue"></span>
+      <select id="motionCurve">
+        <option value="0">線形</option>
+        <option value="1">加速</option>
+        <option value="2">減速</option>
+        <option value="3">加速減速</option>
+        <option value="4">強い加速</option>
+      </select>
+    </label>
+
+    <label>
+      寿命のばらつき
+      <span class="value" id="lifeVariationValue"></span>
+      <input id="lifeVariation" type="range" min="0" max="1" step="0.01" value="0.25">
+    </label>
+
+    <label>
+      斜め流れ
+      <span class="value" id="directionJitterValue"></span>
+      <input id="directionJitter" type="range" min="0" max="1" step="0.01" value="0.28">
+    </label>
+
+    <label>
+      速度レイヤー
+      <span class="value" id="depthLayersValue"></span>
+      <input id="depthLayers" type="range" min="0" max="1" step="0.01" value="0.45">
+    </label>
+
+    <label>
+      崩れ片の数
+      <span class="value" id="sparkCountValue"></span>
+      <input id="sparkCount" type="range" min="0" max="36" step="1" value="14">
+    </label>
+
+    <label>
+      崩れの広がり
+      <span class="value" id="sparkSpreadValue"></span>
+      <input id="sparkSpread" type="range" min="0" max="2.5" step="0.05" value="1">
+    </label>
+
+    <label>
+      明るさのばらつき
+      <span class="value" id="brightnessVariationValue"></span>
+      <input id="brightnessVariation" type="range" min="0" max="1" step="0.01" value="0.55">
+    </label>
+
+    <label>
+      先端の強さ
+      <span class="value" id="coreIntensityValue"></span>
+      <input id="coreIntensity" type="range" min="0" max="2.5" step="0.05" value="1.2">
+    </label>
+
+    <label>
+      尾の濃さ
+      <span class="value" id="tailIntensityValue"></span>
+      <input id="tailIntensity" type="range" min="0" max="2" step="0.05" value="1">
+    </label>
+
+    <label>
+      崩れ開始
+      <span class="value" id="scatterStartValue"></span>
+      <input id="scatterStart" type="range" min="0.2" max="0.9" step="0.01" value="0.48">
+    </label>
+
+    <label>
+      破片の減衰
+      <span class="value" id="fragmentDecayValue"></span>
+      <input id="fragmentDecay" type="range" min="0" max="1" step="0.01" value="0.65">
+    </label>
+
+    <label>
+      花火の横広がり
+      <span class="value" id="sparkSideSpreadValue"></span>
+      <input id="sparkSideSpread" type="range" min="0" max="2.5" step="0.05" value="1">
+    </label>
+
+    <label>
+      花火の縦広がり
+      <span class="value" id="sparkFallSpreadValue"></span>
+      <input id="sparkFallSpread" type="range" min="0" max="2.5" step="0.05" value="1">
+    </label>
+
+    <label>
+      円盤の大きさ
+      <span class="value" id="diskScaleValue"></span>
+      <input id="diskScale" type="range" min="0.45" max="0.98" step="0.01" value="0.9">
+    </label>
+
+    <label>
+      内側余白
+      <span class="value" id="innerGapValue"></span>
+      <input id="innerGap" type="range" min="0" max="0.55" step="0.01" value="0.15">
+    </label>
+
+    <label>
+      初期回転（度）
+      <span class="value" id="rotationValue"></span>
+      <input id="rotation" type="range" min="-180" max="180" step="1" value="0">
+    </label>
+
+    <div class="checkRow">
+      <input id="autoRotate" type="checkbox" checked>
+      <label for="autoRotate">自動回転</label>
+    </div>
+
+    <label>
+      回転スピード（度/秒）
+      <span class="value" id="rotationSpeedValue"></span>
+      <input id="rotationSpeed" type="range" min="-720" max="720" step="1" value="180">
+    </label>
+
+    <label>
+      リフレッシュレート（FPS）
+      <span class="value" id="refreshRateValue"></span>
+      <input id="refreshRate" type="range" min="1" max="60" step="1" value="30">
+    </label>
+
+    <div class="checkRow">
+      <input id="showFrameLines" type="checkbox" checked>
+      <label for="showFrameLines">分割線を表示</label>
+    </div>
+
+    <button id="reroll">流れ星を再生成</button>
+    <button id="resetSpin">回転をリセット</button>
+    <button id="savePng">PNG保存</button>
+
+    <div class="note">
+      分割数はパラパラ漫画のコマ数です。各分割には同じ流れ星群の別フレームを描きます。<br>
+      流れ星はランダムな横位置と開始分割に出現し、指定したコマ数で内側から外側へ流れます。<br>
+      寿命のばらつき、斜め流れ、速度レイヤーは星ごとのランダム値に倍率としてかかります。<br>
+      崩れ片の数は星ごとに少しランダムに増減します。0にすると散らずにフェードアウトします。<br>
+      先端の強さ、尾の濃さ、花火の横広がり、縦広がりで白い芯と放射状の散り方を調整できます。<br>
+      回転スピードをマイナスにすると逆回転します。
+    </div>
+  </aside>
+
+  <main>
+    <canvas id="canvas"></canvas>
+  </main>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const controlIds = [
+      'divisions',
+      'starCount',
+      'trailLength',
+      'starSize',
+      'lifeFrames',
+      'motionCurve',
+      'lifeVariation',
+      'directionJitter',
+      'depthLayers',
+      'sparkCount',
+      'sparkSpread',
+      'brightnessVariation',
+      'coreIntensity',
+      'tailIntensity',
+      'scatterStart',
+      'fragmentDecay',
+      'sparkSideSpread',
+      'sparkFallSpread',
+      'diskScale',
+      'innerGap',
+      'rotation',
+      'rotationSpeed',
+      'refreshRate',
+    ];
+
+    const controls = Object.fromEntries(
+      controlIds.map((id) => [id, document.getElementById(id)])
+    );
+
+    const valueEls = Object.fromEntries(
+      controlIds.map((id) => [id, document.getElementById(`${id}Value`)])
+    );
+
+    const autoRotateEl = document.getElementById('autoRotate');
+    const showFrameLinesEl = document.getElementById('showFrameLines');
+    const rerollButton = document.getElementById('reroll');
+    const resetSpinButton = document.getElementById('resetSpin');
+    const savePngButton = document.getElementById('savePng');
+
+    const STORAGE_KEY = 'shootingStarsZoetrope_settings_v1';
+    const motionCurveLabels = ['線形', '加速', '減速', '加速減速', '強い加速'];
+
+    let seed = Math.floor(Math.random() * 1_000_000_000);
+    let stars = [];
+    let generatedDivisions = 0;
+    let generatedSparkCount = 0;
+    let spinOffsetDeg = 0;
+    let lastTickMs = 0;
+    let lastRenderMs = 0;
+    let animationFrameId = null;
+
+    function readParams() {
+      return {
+        divisions: Number(controls.divisions.value),
+        starCount: Number(controls.starCount.value),
+        trailLength: Number(controls.trailLength.value),
+        starSize: Number(controls.starSize.value),
+        lifeFrames: Number(controls.lifeFrames.value),
+        motionCurve: Number(controls.motionCurve.value),
+        lifeVariation: Number(controls.lifeVariation.value),
+        directionJitter: Number(controls.directionJitter.value),
+        depthLayers: Number(controls.depthLayers.value),
+        sparkCount: Number(controls.sparkCount.value),
+        sparkSpread: Number(controls.sparkSpread.value),
+        brightnessVariation: Number(controls.brightnessVariation.value),
+        coreIntensity: Number(controls.coreIntensity.value),
+        tailIntensity: Number(controls.tailIntensity.value),
+        scatterStart: Number(controls.scatterStart.value),
+        fragmentDecay: Number(controls.fragmentDecay.value),
+        sparkSideSpread: Number(controls.sparkSideSpread.value),
+        sparkFallSpread: Number(controls.sparkFallSpread.value),
+        diskScale: Number(controls.diskScale.value),
+        innerGap: Number(controls.innerGap.value),
+        rotation: Number(controls.rotation.value),
+        rotationSpeed: Number(controls.rotationSpeed.value),
+        refreshRate: Number(controls.refreshRate.value),
+        autoRotate: autoRotateEl.checked,
+        showFrameLines: showFrameLinesEl.checked,
+      };
+    }
+
+    function syncLabels() {
+      const params = readParams();
+      valueEls.divisions.textContent = String(params.divisions);
+      valueEls.starCount.textContent = String(params.starCount);
+      valueEls.trailLength.textContent = params.trailLength.toFixed(2);
+      valueEls.starSize.textContent = params.starSize.toFixed(1);
+      valueEls.lifeFrames.textContent = `${Math.max(2, Math.round(params.lifeFrames))}コマ`;
+      valueEls.motionCurve.textContent = motionCurveLabels[params.motionCurve] ?? '線形';
+      valueEls.lifeVariation.textContent = `${Math.round(params.lifeVariation * 100)}%`;
+      valueEls.directionJitter.textContent = `${Math.round(params.directionJitter * 100)}%`;
+      valueEls.depthLayers.textContent = `${Math.round(params.depthLayers * 100)}%`;
+      valueEls.sparkCount.textContent = `${Math.round(params.sparkCount)}個`;
+      valueEls.sparkSpread.textContent = `${params.sparkSpread.toFixed(2)}x`;
+      valueEls.brightnessVariation.textContent = `${Math.round(params.brightnessVariation * 100)}%`;
+      valueEls.coreIntensity.textContent = `${params.coreIntensity.toFixed(2)}x`;
+      valueEls.tailIntensity.textContent = `${params.tailIntensity.toFixed(2)}x`;
+      valueEls.scatterStart.textContent = `${Math.round(params.scatterStart * 100)}%`;
+      valueEls.fragmentDecay.textContent = `${Math.round(params.fragmentDecay * 100)}%`;
+      valueEls.sparkSideSpread.textContent = `${params.sparkSideSpread.toFixed(2)}x`;
+      valueEls.sparkFallSpread.textContent = `${params.sparkFallSpread.toFixed(2)}x`;
+      valueEls.diskScale.textContent = params.diskScale.toFixed(2);
+      valueEls.innerGap.textContent = params.innerGap.toFixed(2);
+      valueEls.rotation.textContent = `${Math.round(params.rotation)}°`;
+      valueEls.rotationSpeed.textContent = `${Math.round(params.rotationSpeed)}°/s`;
+      valueEls.refreshRate.textContent = `${Math.round(params.refreshRate)} FPS`;
+    }
+
+    function saveSettings() {
+      const data = {};
+      for (const id of controlIds) {
+        data[id] = controls[id].value;
+      }
+      data.autoRotate = autoRotateEl.checked;
+      data.showFrameLines = showFrameLinesEl.checked;
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (_) {
+        // localStorage が無効な環境では無視
+      }
+    }
+
+    function loadSettings() {
+      let data;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        data = JSON.parse(raw);
+      } catch (_) {
+        return;
+      }
+
+      for (const id of controlIds) {
+        if (data[id] != null) {
+          controls[id].value = data[id];
+        }
+      }
+      if (data.autoRotate != null) {
+        autoRotateEl.checked = data.autoRotate;
+      }
+      if (data.showFrameLines != null) {
+        showFrameLinesEl.checked = data.showFrameLines;
+      }
+    }
+
+    function createRandom(seedValue) {
+      let state = seedValue >>> 0;
+      return function random() {
+        state = (state * 1664525 + 1013904223) >>> 0;
+        return state / 4294967296;
+      };
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function smoothstep(edge0, edge1, value) {
+      const t = Math.min(Math.max((value - edge0) / (edge1 - edge0), 0), 1);
+      return t * t * (3 - 2 * t);
+    }
+
+    function fract(value) {
+      return value - Math.floor(value);
+    }
+
+    function positiveModulo(value, divisor) {
+      return ((value % divisor) + divisor) % divisor;
+    }
+
+    function getElapsedFrames(frameIndex, startFrame, divisions) {
+      return positiveModulo(frameIndex - startFrame, divisions);
+    }
+
+    function shapeMotionPhase(value, curve) {
+      const t = Math.min(Math.max(value, 0), 1);
+
+      if (curve === 1) {
+        return t * t;
+      }
+
+      if (curve === 2) {
+        const inv = 1 - t;
+        return 1 - inv * inv;
+      }
+
+      if (curve === 3) {
+        return t * t * (3 - 2 * t);
+      }
+
+      if (curve === 4) {
+        return t * t * t;
+      }
+
+      return t;
+    }
+
+    function getStarLifeFrames(star, params, divisions) {
+      const baseFrames = Math.max(2, Math.round(params.lifeFrames));
+      const variationScale = 1 + star.lifeJitter * params.lifeVariation;
+      const depthSpeedScale = lerp(1.28, 0.72, star.depth);
+      const depthScale = lerp(1, depthSpeedScale, params.depthLayers);
+      const maxFrames = Number(controls.lifeFrames.max);
+      return Math.min(maxFrames, Math.max(2, Math.round(baseFrames * variationScale * depthScale)));
+    }
+
+    function createSparks(random, sparkCount) {
+      const baseCount = Math.max(0, Math.round(sparkCount));
+      if (baseCount === 0) return [];
+
+      const count = Math.max(1, Math.round(baseCount * lerp(0.65, 1.35, random())));
+      return Array.from({ length: count }, () => ({
+        along: lerp(0.05, 1.18, random()),
+        side: lerp(-1, 1, random()),
+        angle: random() * Math.PI * 2,
+        burst: lerp(0.45, 1.35, random()),
+        delay: lerp(0, 0.28, random()),
+        spread: lerp(0.35, 1.35, random()),
+        fall: lerp(0.25, 1.2, random()),
+        size: lerp(0.55, 1.35, random()),
+        length: lerp(0.45, 1.5, random()),
+        brightness: lerp(0.45, 1, random()),
+      }));
+    }
+
+    function shuffle(values, random) {
+      for (let i = values.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [values[i], values[j]] = [values[j], values[i]];
+      }
+      return values;
+    }
+
+    function createDistributedStartFrames(count, divisions, random) {
+      const phaseOffset = random();
+      const frameOffset = Math.floor(random() * divisions);
+      const frames = Array.from({ length: count }, (_, index) => {
+        const frame = Math.floor(((index + phaseOffset) * divisions) / count);
+        return positiveModulo(frame + frameOffset, divisions);
+      });
+
+      return shuffle(frames, random);
+    }
+
+    function generateStars() {
+      const params = readParams();
+      const random = createRandom(seed);
+      const divisions = Math.max(3, Math.round(params.divisions));
+      const starCount = Math.max(1, Math.round(params.starCount));
+      const sparkCount = Math.max(0, Math.round(params.sparkCount));
+      const startFrames = createDistributedStartFrames(starCount, divisions, random);
+      generatedDivisions = divisions;
+      generatedSparkCount = sparkCount;
+      stars = Array.from({ length: starCount }, (_, index) => ({
+        x: lerp(-0.86, 0.86, random()),
+        startFrame: startFrames[index],
+        brightness: lerp(0.62, 1.0, random()),
+        drift: lerp(-0.32, 0.32, random()),
+        tail: lerp(0.72, 1.25, random()),
+        head: lerp(0.7, 1.55, random()),
+        lifeJitter: lerp(-1, 1, random()),
+        direction: lerp(-1, 1, random()),
+        depth: random(),
+        sparks: createSparks(random, sparkCount),
+      }));
+    }
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+      const height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return {
+        width: canvas.clientWidth,
+        height: canvas.clientHeight,
+        dpr,
+      };
+    }
+
+    function getCurrentRotationDeg() {
+      const params = readParams();
+      return params.rotation + spinOffsetDeg;
+    }
+
+    function drawStar(star, frameIndex, params, innerRadius, outerRadius, sectorAngle) {
+      const divisions = Math.max(3, Math.round(params.divisions));
+      const lifeFrames = getStarLifeFrames(star, params, divisions);
+      const startFrame = positiveModulo(star.startFrame, divisions);
+      const firstElapsedFrames = getElapsedFrames(frameIndex, startFrame, divisions);
+
+      for (let elapsedFrames = firstElapsedFrames; elapsedFrames < lifeFrames; elapsedFrames += divisions) {
+        drawStarSample(star, elapsedFrames, lifeFrames, params, innerRadius, outerRadius, sectorAngle);
+      }
+    }
+
+    function drawStarSample(star, elapsedFrames, lifeFrames, params, innerRadius, outerRadius, sectorAngle) {
+      const rawPhase = (elapsedFrames + 0.5) / lifeFrames;
+      const motionPhase = shapeMotionPhase(rawPhase, params.motionCurve);
+      const fadeIn = smoothstep(0.0, 0.22, rawPhase);
+      const fadeOut = 1 - smoothstep(0.76, 1.0, rawPhase);
+      const layerBrightness = lerp(1, lerp(0.74, 1.26, star.depth), params.depthLayers);
+      const starBrightness = lerp(1, star.brightness, params.brightnessVariation);
+      const alpha = fadeIn * fadeOut * starBrightness * layerBrightness;
+
+      if (alpha <= 0.01) return;
+
+      const travelRadius = outerRadius - innerRadius;
+      const radial = lerp(innerRadius, outerRadius, motionPhase);
+      const halfWidth = Math.max(2, radial * Math.tan(sectorAngle * 0.5) * 0.82);
+      const directionAmount = star.direction * params.directionJitter;
+      const lateral = star.x * halfWidth + directionAmount * halfWidth * 0.58 * motionPhase;
+      const tailScale = lerp(1, lerp(0.84, 1.24, star.depth), params.depthLayers);
+      const tailLength = travelRadius * params.trailLength * star.tail * tailScale;
+      const tailMotionPhase = Math.max(0, motionPhase - tailLength / Math.max(1, travelRadius));
+      const tailRadial = lerp(innerRadius, outerRadius, tailMotionPhase);
+      const tailHalfWidth = Math.max(2, tailRadial * Math.tan(sectorAngle * 0.5) * 0.82);
+      const tailLateral = star.x * tailHalfWidth + directionAmount * tailHalfWidth * 0.58 * tailMotionPhase;
+      const drift = star.drift * tailLength * 0.35;
+      const layerSize = lerp(1, lerp(0.72, 1.42, star.depth), params.depthLayers);
+      const lineWidth = params.starSize * star.head * layerSize;
+      const scatterStart = Math.min(0.9, Math.max(0.2, params.scatterStart));
+      const scatterEnd = Math.min(0.99, scatterStart + Math.max(0.08, (1 - scatterStart) * 0.85));
+      const scatter = smoothstep(scatterStart, scatterEnd, rawPhase);
+      const burstOriginPhase = shapeMotionPhase(scatterStart, params.motionCurve);
+      const burstOriginR = lerp(innerRadius, outerRadius, burstOriginPhase);
+      const burstOriginHalfWidth = Math.max(2, burstOriginR * Math.tan(sectorAngle * 0.5) * 0.82);
+      const burstOriginL = star.x * burstOriginHalfWidth + directionAmount * burstOriginHalfWidth * 0.58 * burstOriginPhase;
+      const bodyFadeStart = Math.max(0, scatterStart - 0.18);
+      const intactAlpha = alpha * (1 - smoothstep(bodyFadeStart, scatterStart, rawPhase));
+      const sparkStartEnd = Math.min(0.98, scatterStart + 0.22);
+      const sparkDecayStart = Math.max(sparkStartEnd, 0.82 + scatterStart * 0.08);
+      const sparkAlpha = starBrightness
+        * layerBrightness
+        * smoothstep(scatterStart, sparkStartEnd, rawPhase)
+        * (1 - smoothstep(sparkDecayStart, 1.0, rawPhase));
+      const decayPhase = smoothstep(scatterStart, 1.0, rawPhase);
+      const fragmentSizeScale = lerp(1, 0.35, params.fragmentDecay * decayPhase);
+
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (intactAlpha > 0.01) {
+        const gradient = ctx.createLinearGradient(
+          tailRadial,
+          tailLateral - drift,
+          radial,
+          lateral
+        );
+        gradient.addColorStop(0, `rgba(255, 255, 255, 0)`);
+        gradient.addColorStop(0.42, `rgba(255, 255, 255, ${Math.min(1, intactAlpha * 0.24 * params.tailIntensity)})`);
+        gradient.addColorStop(1, `rgba(255, 255, 255, ${Math.min(1, intactAlpha * 0.82 * params.tailIntensity)})`);
+
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = lineWidth;
+        ctx.beginPath();
+        ctx.moveTo(tailRadial, tailLateral - drift);
+        ctx.lineTo(radial, lateral);
+        ctx.stroke();
+
+        ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, intactAlpha * params.coreIntensity)})`;
+        ctx.beginPath();
+        ctx.arc(radial, lateral, Math.max(0.8, lineWidth * 0.72 * Math.sqrt(Math.max(0.2, params.coreIntensity))), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (sparkAlpha > 0.01) {
+        for (const spark of star.sparks) {
+          const delayedBurst = Math.min(Math.max((decayPhase - spark.delay) / Math.max(0.01, 1 - spark.delay), 0), 1);
+          const burstEase = 1 - Math.pow(1 - delayedBurst, 2);
+          const horizontalScale = 0.34 + params.sparkSideSpread * 0.58;
+          const verticalScale = 0.34 + params.sparkFallSpread * 0.58;
+          const burstDistance = travelRadius * 0.15 * params.sparkSpread * spark.burst * burstEase;
+          const burstR = Math.cos(spark.angle) * burstDistance * verticalScale;
+          const burstL = Math.sin(spark.angle) * burstDistance * horizontalScale;
+          const sparkR = burstOriginR + burstR;
+          const sparkL = burstOriginL + burstL;
+          const fragmentLength = lineWidth * (1.2 + spark.length * 2.9) * (0.65 + scatter) * (0.55 + params.sparkSpread * 0.45);
+          const tipDecay = 1 - smoothstep(0.86, 1.0, decayPhase) * params.fragmentDecay;
+          const fragmentAlpha = Math.min(1, sparkAlpha * spark.brightness * (0.45 + scatter * 0.75) * tipDecay);
+          const fragmentWidth = Math.max(0.35, lineWidth * 0.42 * spark.size * fragmentSizeScale);
+          const trailBack = fragmentLength * fragmentSizeScale * (0.5 + burstEase * 0.75);
+          const unitR = burstDistance > 0.001 ? burstR / burstDistance : 1;
+          const unitL = burstDistance > 0.001 ? burstL / burstDistance : 0;
+          const trailStartR = sparkR - unitR * trailBack;
+          const trailStartL = sparkL - unitL * trailBack;
+          const rootFade = Math.min(0.92, Math.pow(decayPhase, 1.15) * lerp(0.18, 0.9, params.fragmentDecay));
+          const glowStart = Math.min(0.98, rootFade + 0.2);
+          const fragmentGradient = ctx.createLinearGradient(trailStartR, trailStartL, sparkR, sparkL);
+          fragmentGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+          fragmentGradient.addColorStop(rootFade, 'rgba(255, 255, 255, 0)');
+          fragmentGradient.addColorStop(glowStart, `rgba(255, 255, 255, ${fragmentAlpha * 0.62})`);
+          fragmentGradient.addColorStop(1, `rgba(255, 255, 255, ${fragmentAlpha})`);
+
+          ctx.strokeStyle = fragmentGradient;
+          ctx.lineWidth = fragmentWidth;
+          ctx.beginPath();
+          ctx.moveTo(trailStartR, trailStartL);
+          ctx.lineTo(sparkR, sparkL);
+          ctx.stroke();
+
+          ctx.fillStyle = `rgba(255, 255, 255, ${fragmentAlpha * 0.86})`;
+          ctx.beginPath();
+          ctx.arc(sparkR, sparkL, Math.max(0.45, fragmentWidth * 0.72), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawFrameLines(divisions, radius, innerRadius) {
+      const sectorAngle = Math.PI * 2 / divisions;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = 1;
+
+      for (let i = 0; i < divisions; i++) {
+        const angle = i * sectorAngle - Math.PI / 2 - sectorAngle * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * innerRadius, Math.sin(angle) * innerRadius);
+        ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+        ctx.stroke();
+      }
+
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      if (innerRadius > 2) {
+        ctx.beginPath();
+        ctx.arc(0, 0, innerRadius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawDisk(width, height) {
+      const params = readParams();
+      const divisions = Math.max(3, Math.round(params.divisions));
+      const sectorAngle = Math.PI * 2 / divisions;
+      const centerX = width * 0.5;
+      const centerY = height * 0.5;
+      const radius = Math.min(width, height) * 0.5 * params.diskScale;
+      const innerRadius = radius * params.innerGap;
+      const outerRadius = radius;
+      const rotationRad = getCurrentRotationDeg() * Math.PI / 180;
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      ctx.rotate(rotationRad);
+
+      for (let frameIndex = 0; frameIndex < divisions; frameIndex++) {
+        const angle = -Math.PI / 2 + frameIndex * sectorAngle;
+        ctx.save();
+        ctx.rotate(angle);
+
+        for (const star of stars) {
+          drawStar(star, frameIndex, params, innerRadius, outerRadius, sectorAngle);
+        }
+        ctx.restore();
+      }
+
+      if (params.showFrameLines) {
+        drawFrameLines(divisions, outerRadius, innerRadius);
+      }
+
+      ctx.restore();
+    }
+
+    function render() {
+      const { width, height } = resize();
+      drawDisk(width, height);
+    }
+
+    function savePng() {
+      render();
+      const link = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      link.href = canvas.toDataURL('image/png');
+      link.download = `shooting-stars-zoetrope-${timestamp}.png`;
+      link.click();
+    }
+
+    function animationLoop(nowMs) {
+      if (lastTickMs === 0) lastTickMs = nowMs;
+      if (lastRenderMs === 0) lastRenderMs = nowMs;
+
+      const params = readParams();
+      const deltaMs = nowMs - lastTickMs;
+      lastTickMs = nowMs;
+
+      if (params.autoRotate) {
+        spinOffsetDeg += params.rotationSpeed * (deltaMs / 1000);
+
+        const frameIntervalMs = 1000 / Math.max(1, params.refreshRate);
+        if (nowMs - lastRenderMs >= frameIntervalMs) {
+          render();
+          lastRenderMs = nowMs;
+        }
+      } else {
+        lastRenderMs = nowMs;
+      }
+
+      animationFrameId = requestAnimationFrame(animationLoop);
+    }
+
+    function runSelfTests() {
+      console.assert(controls.divisions.max === '120', '分割数の最大値は120であるべきです');
+      console.assert(controls.starCount.max === '80', '流れ星の数の最大値は80であるべきです');
+      console.assert(controls.sparkCount.max === '36', '崩れ片の数の最大値は36であるべきです');
+      console.assert(controls.motionCurve !== null, 'motionCurve セレクトが存在するべきです');
+      console.assert(controls.lifeVariation.max === '1', '寿命のばらつきの最大値は1であるべきです');
+      console.assert(controls.lifeFrames.max === '64', '流れるコマ数の最大値は64であるべきです');
+      console.assert(controls.directionJitter.max === '1', '斜め流れの最大値は1であるべきです');
+      console.assert(controls.depthLayers.max === '1', '速度レイヤーの最大値は1であるべきです');
+      console.assert(controls.brightnessVariation.max === '1', '明るさのばらつきの最大値は1であるべきです');
+      console.assert(controls.coreIntensity.max === '2.5', '先端の強さの最大値は2.5であるべきです');
+      console.assert(controls.tailIntensity.max === '2', '尾の濃さの最大値は2であるべきです');
+      console.assert(controls.scatterStart.min === '0.2', '崩れ開始の最小値は0.2であるべきです');
+      console.assert(controls.fragmentDecay.max === '1', '破片の減衰の最大値は1であるべきです');
+      console.assert(controls.sparkSideSpread.max === '2.5', '横散りの最大値は2.5であるべきです');
+      console.assert(controls.sparkFallSpread.max === '2.5', '垂れ方向の最大値は2.5であるべきです');
+      console.assert(typeof readParams().divisions === 'number', 'divisions は number であるべきです');
+      console.assert(typeof readParams().starCount === 'number', 'starCount は number であるべきです');
+      console.assert(typeof readParams().lifeFrames === 'number', 'lifeFrames は number であるべきです');
+      console.assert(typeof readParams().motionCurve === 'number', 'motionCurve は number であるべきです');
+      console.assert(typeof readParams().lifeVariation === 'number', 'lifeVariation は number であるべきです');
+      console.assert(typeof readParams().directionJitter === 'number', 'directionJitter は number であるべきです');
+      console.assert(typeof readParams().depthLayers === 'number', 'depthLayers は number であるべきです');
+      console.assert(typeof readParams().sparkCount === 'number', 'sparkCount は number であるべきです');
+      console.assert(typeof readParams().sparkSpread === 'number', 'sparkSpread は number であるべきです');
+      console.assert(typeof readParams().brightnessVariation === 'number', 'brightnessVariation は number であるべきです');
+      console.assert(typeof readParams().coreIntensity === 'number', 'coreIntensity は number であるべきです');
+      console.assert(typeof readParams().tailIntensity === 'number', 'tailIntensity は number であるべきです');
+      console.assert(typeof readParams().scatterStart === 'number', 'scatterStart は number であるべきです');
+      console.assert(typeof readParams().fragmentDecay === 'number', 'fragmentDecay は number であるべきです');
+      console.assert(typeof readParams().sparkSideSpread === 'number', 'sparkSideSpread は number であるべきです');
+      console.assert(typeof readParams().sparkFallSpread === 'number', 'sparkFallSpread は number であるべきです');
+      console.assert(createRandom(1)() === createRandom(1)(), '乱数は同じ seed で再現するべきです');
+      console.assert(fract(1.25) === 0.25, 'fract は小数部を返すべきです');
+      console.assert(shapeMotionPhase(0.5, 0) === 0.5, '線形カーブは値を変えないべきです');
+      console.assert(shapeMotionPhase(0.5, 1) < 0.5, '加速カーブは中盤まで遅くあるべきです');
+      console.assert(shapeMotionPhase(0.5, 2) > 0.5, '減速カーブは中盤まで速くあるべきです');
+      console.assert(createSparks(createRandom(2), 0).length === 0, '崩れ片の数が0なら破片を作らないべきです');
+      console.assert(createSparks(createRandom(2), 14).length > 0, '崩れ片の数が正なら破片を作るべきです');
+      console.assert(
+        getStarLifeFrames({ lifeJitter: 0, depth: 0.5 }, { lifeFrames: 6, lifeVariation: 1, depthLayers: 0 }, 24) === 6,
+        'ばらつきとレイヤーが実質無効なら基準コマ数を使うべきです'
+      );
+      console.assert(
+        getStarLifeFrames({ lifeJitter: 0, depth: 0.5 }, { lifeFrames: 64, lifeVariation: 0, depthLayers: 0 }, 24) === 64,
+        '流れるコマ数は分割数を超えて保持できるべきです'
+      );
+      console.assert(getElapsedFrames(20, 20, 24) === 0, '開始フレームでは経過0であるべきです');
+      console.assert(getElapsedFrames(0, 20, 24) === 4, '末尾から先頭へ循環して経過フレームを数えるべきです');
+      console.assert(getElapsedFrames(1, 20, 24) === 5, '20番開始の6コマ目は1番であるべきです');
+      console.assert(getElapsedFrames(0, 20, 24) + 24 === 28, '2周目の同じ分割でも経過フレームを継続できるべきです');
+      console.assert(
+        new Set(createDistributedStartFrames(6, 24, createRandom(3))).size === 6,
+        '開始フレームは分割数に余裕がある場合、重複を避けるべきです'
+      );
+      const denseCounts = Array.from({ length: 24 }, () => 0);
+      for (const frame of createDistributedStartFrames(80, 24, createRandom(4))) {
+        denseCounts[frame]++;
+      }
+      console.assert(
+        Math.max(...denseCounts) - Math.min(...denseCounts) <= 1,
+        '星数が分割数を超えても開始フレーム数の偏りは1以内であるべきです'
+      );
+      console.info('Self tests passed');
+    }
+
+    loadSettings();
+    generateStars();
+    syncLabels();
+
+    for (const input of Object.values(controls)) {
+      input.addEventListener('input', () => {
+        const oldCount = stars.length;
+        const params = readParams();
+        const divisions = Math.max(3, Math.round(params.divisions));
+        const sparkCount = Math.max(0, Math.round(params.sparkCount));
+        if (
+          Math.round(params.starCount) !== oldCount ||
+          divisions !== generatedDivisions ||
+          sparkCount !== generatedSparkCount
+        ) {
+          generateStars();
+        }
+        syncLabels();
+        saveSettings();
+        render();
+      });
+    }
+
+    autoRotateEl.addEventListener('change', () => {
+      syncLabels();
+      saveSettings();
+      render();
+    });
+
+    showFrameLinesEl.addEventListener('change', () => {
+      saveSettings();
+      render();
+    });
+
+    rerollButton.addEventListener('click', () => {
+      seed = Math.floor(Math.random() * 1_000_000_000);
+      generateStars();
+      render();
+    });
+
+    resetSpinButton.addEventListener('click', () => {
+      spinOffsetDeg = 0;
+      render();
+    });
+
+    savePngButton.addEventListener('click', savePng);
+    window.addEventListener('resize', render);
+
+    runSelfTests();
+    render();
+    animationFrameId = requestAnimationFrame(animationLoop);
+
+    window.addEventListener('beforeunload', () => {
+      if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+    });
+  </script>
+</body>
+</html>

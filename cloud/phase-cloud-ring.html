@@ -1,0 +1,1257 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebGPU Phase Cloud Ring</title>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #000000;
+      color: #f3eadc;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      background: #000000;
+    }
+
+    aside {
+      height: 100vh;
+      max-height: 100vh;
+      min-height: 0;
+      padding: 18px;
+      background: rgba(20, 18, 16, 0.92);
+      border-right: 1px solid rgba(255, 255, 255, 0.12);
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0 0 8px;
+      letter-spacing: 0.04em;
+    }
+
+    p {
+      margin: 0 0 18px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: rgba(243, 234, 220, 0.72);
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      margin: 14px 0;
+      font-size: 12px;
+      color: rgba(243, 234, 220, 0.86);
+    }
+
+    input[type="range"],
+    select {
+      width: 100%;
+    }
+
+    select {
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: #2b2621;
+      color: #f3eadc;
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    .checkRow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 16px 0 8px;
+      font-size: 13px;
+      color: rgba(243, 234, 220, 0.92);
+    }
+
+    .checkRow label {
+      margin: 0;
+      display: inline;
+    }
+
+    button {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: #2b2621;
+      color: #f3eadc;
+      border-radius: 10px;
+      padding: 11px 12px;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+
+    button:hover { background: #373029; }
+
+    main {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      width: 100%;
+      height: 100vh;
+      overflow: hidden;
+      background: #000000;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .error {
+      position: absolute;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 32px;
+      text-align: center;
+      color: #f3eadc;
+      background: #000000;
+      font-weight: 700;
+      line-height: 1.7;
+    }
+
+    .value {
+      float: right;
+      opacity: 0.7;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .note {
+      font-size: 11px;
+      opacity: 0.7;
+      line-height: 1.5;
+      margin-top: 10px;
+      padding-bottom: 24px;
+    }
+
+    @media (max-width: 700px) {
+      body {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(320px, 58vh) minmax(280px, 42vh);
+      }
+
+      main {
+        grid-row: 1;
+        height: 100%;
+      }
+
+      aside {
+        grid-row: 2;
+        height: 100%;
+        max-height: 100%;
+        border-right: 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <aside>
+    <h1>位相雲リング WebGPU</h1>
+    <p>
+      生成した雲を指定数だけ円周上に配置します。<br>
+      各雲は、指定された位相と配置番号から計算した閉じた位相で変化します。
+    </p>
+
+    <label>
+      一周あたりの配置数
+      <span class="value" id="countValue"></span>
+      <input id="count" type="range" min="1" max="120" step="1" value="24">
+    </label>
+
+    <label>
+      巻き数
+      <span class="value" id="spiralTurnsValue"></span>
+      <input id="spiralTurns" type="range" min="1" max="32" step="0.25" value="3">
+    </label>
+
+    <label>
+      外周半径
+      <span class="value" id="ringRadiusValue"></span>
+      <input id="ringRadius" type="range" min="0" max="6" step="0.01" value="0.62">
+    </label>
+
+    <label>
+      全体倍率
+      <span class="value" id="imageScaleValue"></span>
+      <input id="imageScale" type="range" min="0.1" max="5" step="0.01" value="1">
+    </label>
+
+    <label>
+      雲のサイズ
+      <span class="value" id="cloudSizeValue"></span>
+      <input id="cloudSize" type="range" min="0.04" max="0.7" step="0.01" value="0.22">
+    </label>
+
+    <label>
+      雲の横長さ
+      <span class="value" id="cloudAspectValue"></span>
+      <input id="cloudAspect" type="range" min="0.35" max="3" step="0.01" value="1.45">
+    </label>
+
+    <label>
+      雲の濃さ
+      <span class="value" id="cloudValue"></span>
+      <input id="cloud" type="range" min="0" max="2" step="0.01" value="0.95">
+    </label>
+
+    <label>
+      雲の渦
+      <span class="value" id="swirlValue"></span>
+      <input id="swirl" type="range" min="0" max="100" step="0.01" value="9">
+    </label>
+
+    <label>
+      余白
+      <span class="value" id="paperValue"></span>
+      <input id="paper" type="range" min="0" max="1" step="0.01" value="0.22">
+    </label>
+
+    <label>
+      外側フェード位置
+      <span class="value" id="outerFadeStartValue"></span>
+      <input id="outerFadeStart" type="range" min="0.1" max="1.2" step="0.01" value="0.67">
+    </label>
+
+    <label>
+      外側フェード長さ
+      <span class="value" id="softnessValue"></span>
+      <input id="softness" type="range" min="0.02" max="0.8" step="0.01" value="0.27">
+    </label>
+
+    <label>
+      外側フェード速さ
+      <span class="value" id="outerFadeSpeedValue"></span>
+      <input id="outerFadeSpeed" type="range" min="0.25" max="4" step="0.05" value="1">
+    </label>
+
+    <label>
+      全体位相（度）
+      <span class="value" id="phaseValue"></span>
+      <input id="phase" type="range" min="0" max="360" step="1" value="0">
+    </label>
+
+    <label>
+      位相周期数
+      <span class="value" id="phaseCyclesValue"></span>
+      <input id="phaseCycles" type="range" min="-8" max="8" step="0.25" value="1">
+    </label>
+
+    <label>
+      球面回転軸 X
+      <span class="value" id="sphereAxisXValue"></span>
+      <input id="sphereAxisX" type="range" min="-1" max="1" step="0.01" value="1">
+    </label>
+
+    <label>
+      球面回転軸 Y
+      <span class="value" id="sphereAxisYValue"></span>
+      <input id="sphereAxisY" type="range" min="-1" max="1" step="0.01" value="0">
+    </label>
+
+    <label>
+      球面回転軸 Z
+      <span class="value" id="sphereAxisZValue"></span>
+      <input id="sphereAxisZ" type="range" min="-1" max="1" step="0.01" value="0">
+    </label>
+
+    <label>
+      雲の向き
+      <span class="value" id="orientationValue"></span>
+      <select id="orientation">
+        <option value="0">放射方向</option>
+        <option value="1">接線方向</option>
+        <option value="2">固定</option>
+      </select>
+    </label>
+
+    <label>
+      中心Y位置
+      <span class="value" id="centerYValue"></span>
+      <input id="centerY" type="range" min="-0.5" max="0.5" step="0.01" value="0">
+    </label>
+
+    <label>
+      初期回転（度）
+      <span class="value" id="rotationValue"></span>
+      <input id="rotation" type="range" min="-180" max="180" step="1" value="0">
+    </label>
+
+    <div class="checkRow">
+      <input id="autoRotate" type="checkbox">
+      <label for="autoRotate">自動回転</label>
+    </div>
+
+    <label>
+      回転スピード（度/秒）
+      <span class="value" id="rotationSpeedValue"></span>
+      <input id="rotationSpeed" type="range" min="-720" max="720" step="1" value="18">
+    </label>
+
+    <label>
+      リフレッシュレート（FPS）
+      <span class="value" id="refreshRateValue"></span>
+      <input id="refreshRate" type="range" min="1" max="60" step="1" value="30">
+    </label>
+
+    <button id="applySettings">Run</button>
+    <button id="reroll">雲を再生成</button>
+    <button id="resetMotion">回転をリセット</button>
+    <button id="savePng">現在の状態を1:1でPNG保存</button>
+
+    <div class="note">
+      一周あたりの配置数 × 巻き数で、中心側から外周へ渦巻き状に配置します。<br>
+      全体倍率は、自動フィット後の見た目を拡大縮小します。<br>
+      巻き数と配置数を大きくすると、再生成時だけ重くなります。<br>
+      回転スピードとFPS以外の変更は、Runを押した時に反映します。<br>
+      外側フェード位置は薄くなり始める半径、長さは消えるまでの幅、速さは落ち方のカーブです。<br>
+      位相周期数を 0 にすると全て同じ雲になります。<br>
+      位相周期数を付けると、球面を上下に回した状態として一周で閉じる形に変化します。<br>
+      アニメーションは円全体の回転だけです。<br>
+      PNG保存では、現在の回転状態を正方形で書き出します。
+    </div>
+  </aside>
+
+  <main>
+    <canvas id="canvas"></canvas>
+    <div class="error" id="error">
+      このブラウザでは WebGPU が使えません。<br>
+      Chrome / Edge の最新版で開いてください。
+    </div>
+  </main>
+
+  <script type="module">
+    const canvas = document.getElementById('canvas');
+    const error = document.getElementById('error');
+
+    const controlIds = [
+      'count',
+      'spiralTurns',
+      'ringRadius',
+      'imageScale',
+      'cloudSize',
+      'cloudAspect',
+      'cloud',
+      'swirl',
+      'paper',
+      'outerFadeStart',
+      'softness',
+      'outerFadeSpeed',
+      'phase',
+      'phaseCycles',
+      'sphereAxisX',
+      'sphereAxisY',
+      'sphereAxisZ',
+      'orientation',
+      'centerY',
+      'rotation',
+      'rotationSpeed',
+      'refreshRate',
+    ];
+
+    const orientationLabels = ['放射方向', '接線方向', '固定'];
+
+    const controls = Object.fromEntries(
+      controlIds.map((id) => [id, document.getElementById(id)])
+    );
+
+    const valueEls = Object.fromEntries(
+      controlIds.map((id) => [id, document.getElementById(`${id}Value`)])
+    );
+
+    const autoRotateEl = document.getElementById('autoRotate');
+    const applySettingsButton = document.getElementById('applySettings');
+    const rerollButton = document.getElementById('reroll');
+    const resetMotionButton = document.getElementById('resetMotion');
+    const savePngButton = document.getElementById('savePng');
+    let appliedParams = null;
+
+    function readInputParams() {
+      return {
+        count: Number(controls.count.value),
+        spiralTurns: Number(controls.spiralTurns.value),
+        ringRadius: Number(controls.ringRadius.value),
+        imageScale: Number(controls.imageScale.value),
+        cloudSize: Number(controls.cloudSize.value),
+        cloudAspect: Number(controls.cloudAspect.value),
+        cloud: Number(controls.cloud.value),
+        swirl: Number(controls.swirl.value),
+        paper: Number(controls.paper.value),
+        outerFadeStart: Number(controls.outerFadeStart.value),
+        softness: Number(controls.softness.value),
+        outerFadeSpeed: Number(controls.outerFadeSpeed.value),
+        phase: Number(controls.phase.value),
+        phaseCycles: Number(controls.phaseCycles.value),
+        sphereAxisX: Number(controls.sphereAxisX.value),
+        sphereAxisY: Number(controls.sphereAxisY.value),
+        sphereAxisZ: Number(controls.sphereAxisZ.value),
+        orientation: Number(controls.orientation.value),
+        centerY: Number(controls.centerY.value),
+        rotation: Number(controls.rotation.value),
+        rotationSpeed: Number(controls.rotationSpeed.value),
+        refreshRate: Number(controls.refreshRate.value),
+        autoRotate: autoRotateEl.checked,
+      };
+    }
+
+    function readParams() {
+      return appliedParams ?? readInputParams();
+    }
+
+    function readMotionParams() {
+      const inputParams = readInputParams();
+      return {
+        ...readParams(),
+        autoRotate: inputParams.autoRotate,
+        rotationSpeed: inputParams.rotationSpeed,
+        refreshRate: inputParams.refreshRate,
+      };
+    }
+
+    function applyInputParams() {
+      appliedParams = readInputParams();
+    }
+
+    function syncLabels() {
+      const params = readInputParams();
+
+      valueEls.count.textContent = String(params.count);
+      valueEls.spiralTurns.textContent = `${params.spiralTurns.toFixed(2)}巻`;
+      valueEls.ringRadius.textContent = params.ringRadius.toFixed(2);
+      valueEls.imageScale.textContent = `${params.imageScale.toFixed(2)}x`;
+      valueEls.cloudSize.textContent = params.cloudSize.toFixed(2);
+      valueEls.cloudAspect.textContent = params.cloudAspect.toFixed(2);
+      valueEls.cloud.textContent = params.cloud.toFixed(2);
+      valueEls.swirl.textContent = params.swirl.toFixed(2);
+      valueEls.paper.textContent = params.paper.toFixed(2);
+      valueEls.outerFadeStart.textContent = `${Math.round(params.outerFadeStart * 100)}%`;
+      valueEls.softness.textContent = `${Math.round(params.softness * 100)}%`;
+      valueEls.outerFadeSpeed.textContent = `${params.outerFadeSpeed.toFixed(2)}x`;
+      valueEls.phase.textContent = `${Math.round(params.phase)}°`;
+      valueEls.phaseCycles.textContent = `${params.phaseCycles.toFixed(2)}周期`;
+      valueEls.sphereAxisX.textContent = params.sphereAxisX.toFixed(2);
+      valueEls.sphereAxisY.textContent = params.sphereAxisY.toFixed(2);
+      valueEls.sphereAxisZ.textContent = params.sphereAxisZ.toFixed(2);
+      valueEls.orientation.textContent = orientationLabels[params.orientation] ?? '放射方向';
+      valueEls.centerY.textContent = params.centerY.toFixed(2);
+      valueEls.rotation.textContent = `${Math.round(params.rotation)}°`;
+      valueEls.rotationSpeed.textContent = `${Math.round(params.rotationSpeed)}°/s`;
+      valueEls.refreshRate.textContent = `${Math.round(params.refreshRate)} FPS`;
+    }
+
+    const STORAGE_KEY = 'phaseCloudRing_settings_v7';
+
+    function saveSettings() {
+      const data = {};
+      for (const id of controlIds) {
+        data[id] = controls[id].value;
+      }
+      data.autoRotate = autoRotateEl.checked;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (_) {
+        // localStorage が無効な環境では無視
+      }
+    }
+
+    function loadSettings() {
+      let data;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        data = JSON.parse(raw);
+      } catch (_) {
+        return;
+      }
+      for (const id of controlIds) {
+        if (data[id] != null) controls[id].value = data[id];
+      }
+      if (data.autoRotate != null) autoRotateEl.checked = data.autoRotate;
+    }
+
+    loadSettings();
+    applyInputParams();
+
+    let seed = Math.floor(Math.random() * 1_000_000_000);
+    let spinOffsetDeg = 0;
+    let animationFrameId = null;
+    let animationLoop = null;
+    let lastTickMs = 0;
+    let lastRenderMs = 0;
+
+    function shouldAnimate() {
+      const params = readMotionParams();
+      return params.autoRotate && params.rotationSpeed !== 0;
+    }
+
+    function stopAnimation() {
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      lastTickMs = 0;
+      lastRenderMs = 0;
+    }
+
+    function ensureAnimation() {
+      if (!shouldAnimate()) {
+        stopAnimation();
+        return;
+      }
+
+      if (animationFrameId === null && animationLoop !== null) {
+        animationFrameId = requestAnimationFrame(animationLoop);
+      }
+    }
+
+    function runSelfTests() {
+      console.assert(controls.count.max === '120', '配置数は120まで指定できるべきです');
+      console.assert(controls.spiralTurns !== null, 'spiralTurns スライダーが存在するべきです');
+      console.assert(controls.spiralTurns.max === '32', '巻き数は32まで指定できるべきです');
+      console.assert(controls.ringRadius.max === '6', '外周半径は6まで指定できるべきです');
+      console.assert(controls.imageScale !== null, 'imageScale スライダーが存在するべきです');
+      console.assert(controls.outerFadeStart !== null, 'outerFadeStart スライダーが存在するべきです');
+      console.assert(controls.softness !== null, 'softness スライダーが存在するべきです');
+      console.assert(controls.outerFadeSpeed !== null, 'outerFadeSpeed スライダーが存在するべきです');
+      console.assert(controls.phase !== null, 'phase スライダーが存在するべきです');
+      console.assert(controls.phaseCycles !== null, 'phaseCycles スライダーが存在するべきです');
+      console.assert(controls.sphereAxisX !== null, 'sphereAxisX スライダーが存在するべきです');
+      console.assert(controls.sphereAxisY !== null, 'sphereAxisY スライダーが存在するべきです');
+      console.assert(controls.sphereAxisZ !== null, 'sphereAxisZ スライダーが存在するべきです');
+      console.assert(autoRotateEl !== null, 'autoRotate チェックボックスが存在するべきです');
+      console.assert(applySettingsButton !== null, 'applySettings ボタンが存在するべきです');
+      console.assert(savePngButton !== null, 'savePng ボタンが存在するべきです');
+      console.assert(typeof readParams().count === 'number', 'count は number であるべきです');
+      console.assert(typeof readParams().spiralTurns === 'number', 'spiralTurns は number であるべきです');
+      console.assert(typeof readParams().imageScale === 'number', 'imageScale は number であるべきです');
+      console.assert(typeof readParams().outerFadeStart === 'number', 'outerFadeStart は number であるべきです');
+      console.assert(typeof readParams().softness === 'number', 'softness は number であるべきです');
+      console.assert(typeof readParams().outerFadeSpeed === 'number', 'outerFadeSpeed は number であるべきです');
+      console.assert(typeof readParams().phase === 'number', 'phase は number であるべきです');
+      console.assert(typeof readParams().phaseCycles === 'number', 'phaseCycles は number であるべきです');
+      console.assert(typeof readParams().sphereAxisX === 'number', 'sphereAxisX は number であるべきです');
+      console.assert(typeof readParams().sphereAxisY === 'number', 'sphereAxisY は number であるべきです');
+      console.assert(typeof readParams().sphereAxisZ === 'number', 'sphereAxisZ は number であるべきです');
+      console.assert(Number.isFinite(seed), 'seed は有限数であるべきです');
+      console.info('Self tests passed');
+    }
+
+    function getViewScale(params) {
+      const cloudReach = params.cloudSize * Math.max(1, params.cloudAspect) * 1.15;
+      const fitScale = Math.max(1, params.ringRadius + cloudReach + Math.abs(params.centerY));
+      return Math.max(0.05, fitScale / Math.max(0.1, params.imageScale));
+    }
+
+    async function main() {
+      if (!navigator.gpu) {
+        error.style.display = 'grid';
+        return;
+      }
+
+      const adapter = await navigator.gpu.requestAdapter();
+
+      if (!adapter) {
+        error.textContent = 'WebGPU アダプタを取得できませんでした。';
+        error.style.display = 'grid';
+        return;
+      }
+
+      const device = await adapter.requestDevice();
+      const context = canvas.getContext('webgpu');
+      const format = navigator.gpu.getPreferredCanvasFormat();
+
+      context.configure({
+        device,
+        format,
+        alphaMode: 'opaque',
+      });
+
+      const uniformBuffer = device.createBuffer({
+        size: 96,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      const cloudShader = device.createShaderModule({
+        code: /* wgsl */`
+struct Uniforms {
+  resolution: vec2f,
+  count: f32,
+  ringRadius: f32,
+  cloudSize: f32,
+  cloudAspect: f32,
+  cloud: f32,
+  swirl: f32,
+  paper: f32,
+  softness: f32,
+  phase: f32,
+  phaseCycles: f32,
+  rotation: f32,
+  seed: f32,
+  orientation: f32,
+  centerY: f32,
+  sphereAxis: vec4f,
+  spiralTurns: f32,
+  viewScale: f32,
+  outerFadeStart: f32,
+  outerFadeSpeed: f32,
+};
+
+@group(0) @binding(0) var<uniform> u: Uniforms;
+
+fn hash(p: vec2f) -> f32 {
+  let h = dot(p, vec2f(127.1, 311.7));
+  return fract(sin(h) * 43758.5453123);
+}
+
+fn noise(p: vec2f) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+
+  let a = hash(i);
+  let b = hash(i + vec2f(1.0, 0.0));
+  let c = hash(i + vec2f(0.0, 1.0));
+  let d = hash(i + vec2f(1.0, 1.0));
+
+  let w = f * f * (3.0 - 2.0 * f);
+  return mix(mix(a, b, w.x), mix(c, d, w.x), w.y);
+}
+
+fn fbm(p0: vec2f) -> f32 {
+  var p = p0;
+  var amplitude = 0.5;
+  var value = 0.0;
+
+  for (var i = 0; i < 6; i = i + 1) {
+    value += amplitude * noise(p);
+    p = mat2x2f(1.62, 1.11, -1.11, 1.62) * p;
+    amplitude *= 0.52;
+  }
+
+  return value;
+}
+
+fn rotate(p: vec2f, angle: f32) -> vec2f {
+  let c = cos(angle);
+  let s = sin(angle);
+  return mat2x2f(c, s, -s, c) * p;
+}
+
+fn sphereRotationAxis(axis: vec3f) -> vec3f {
+  let len = length(axis);
+  if (len < 0.0001) {
+    return vec3f(1.0, 0.0, 0.0);
+  }
+  return axis / len;
+}
+
+fn phaseCloud(p: vec2f, phase: f32) -> f32 {
+  let radius = length(p);
+  let seedOffset = vec2f(u.seed * 0.000001, u.seed * 0.0000007);
+
+  let sphereZ = sqrt(max(0.0, 1.0 - radius * radius));
+  let n = normalize(vec3f(p.x, p.y, sphereZ));
+  let cp = cos(phase);
+  let sp = sin(phase);
+  let axis = sphereRotationAxis(u.sphereAxis.xyz);
+
+  // 選択した軸まわりに球を回転させる。位相が進むと球面の雲がその軸に沿って流れる。
+  let sphere = n * cp + cross(axis, n) * sp + axis * dot(axis, n) * (1.0 - cp);
+
+  let surfaceA = vec2f(
+    sphere.x + sphere.z * 0.64,
+    sphere.y + sphere.z * 0.38
+  );
+  let surfaceB = vec2f(
+    sphere.x * 0.72 - sphere.z * 0.46,
+    sphere.y * 1.08 + sphere.z * 0.24
+  );
+
+  let warp = fbm(surfaceA * 2.05 + seedOffset) - 0.5;
+  let cloudPoint = surfaceA * (2.0 + radius * 1.9)
+    + surfaceB * 0.42
+    + vec2f(u.swirl * 0.12 * warp, -u.swirl * 0.034 * sphere.y);
+
+  var ink = fbm(cloudPoint * 1.95 + seedOffset);
+  ink += 0.58 * fbm(cloudPoint * 4.4 - seedOffset + surfaceB * 0.18);
+  ink += 0.18 * fbm(cloudPoint * 7.8 + vec2f(surfaceA.y, -surfaceA.x) * 0.20);
+
+  let fadeStart = clamp(u.outerFadeStart, 0.1, 1.2);
+  let fadeLength = clamp(u.softness, 0.02, 0.8);
+  let fadeSpeed = clamp(u.outerFadeSpeed, 0.25, 4.0);
+  let fadeProgress = smoothstep(fadeStart, fadeStart + fadeLength, radius);
+  let edgeFade = 1.0 - pow(fadeProgress, 1.0 / fadeSpeed);
+  let inkMask = smoothstep(0.38 + u.paper * 0.25, 1.08, ink * u.cloud);
+
+  return clamp(inkMask * edgeFade, 0.0, 0.98);
+}
+
+@vertex
+fn vs(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4f {
+  let positions = array<vec2f, 3>(
+    vec2f(-1.0, -3.0),
+    vec2f( 3.0,  1.0),
+    vec2f(-1.0,  1.0)
+  );
+
+  return vec4f(positions[vertexIndex], 0.0, 1.0);
+}
+
+@fragment
+fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
+  let tau = 6.28318530718;
+  let pi = 3.14159265359;
+  let minResolution = min(u.resolution.x, u.resolution.y);
+
+  var uv = (position.xy * 2.0 - u.resolution) / minResolution;
+  uv.y = -uv.y;
+  uv -= vec2f(0.0, u.centerY);
+  uv *= u.viewScale;
+
+  let countPerTurn = clamp(floor(u.count + 0.5), 1.0, 120.0);
+  let spiralTurns = clamp(u.spiralTurns, 1.0, 32.0);
+  let totalCount = clamp(ceil(countPerTurn * spiralTurns) + 1.0, 2.0, 4096.0);
+  var ink = 0.0;
+
+  for (var i: u32 = 0u; i < 4096u; i = i + 1u) {
+    let fi = f32(i);
+    if (fi >= totalCount) {
+      break;
+    }
+
+    let spiralT = select(0.0, fi / max(1.0, totalCount - 1.0), totalCount > 1.0);
+    let angle = spiralT * spiralTurns * tau + u.rotation;
+    let innerRadius = min(u.ringRadius, max(0.0, u.cloudSize * 0.28));
+    let radius = mix(innerRadius, u.ringRadius, spiralT);
+    let center = vec2f(cos(angle), sin(angle)) * radius;
+    var local = uv - center;
+
+    var orientAngle = angle;
+    if (u.orientation > 1.5) {
+      orientAngle = 0.0;
+    } else if (u.orientation > 0.5) {
+      let radialStep = max(0.0001, (u.ringRadius - innerRadius) / max(tau, tau * spiralTurns));
+      orientAngle = angle + atan2(radius, radialStep);
+    }
+
+    local = rotate(local, -orientAngle);
+    local = vec2f(
+      local.x / max(0.01, u.cloudSize * u.cloudAspect),
+      local.y / max(0.01, u.cloudSize)
+    );
+
+    let instancePhase = u.phase + spiralT * tau * u.phaseCycles;
+    let cloudInk = phaseCloud(local, instancePhase);
+    ink = max(ink, cloudInk);
+  }
+
+  let paperColor = vec3f(0.0, 0.0, 0.0);
+  let inkColor = vec3f(1.0, 1.0, 1.0);
+  let color = mix(paperColor, inkColor, clamp(ink, 0.0, 0.98));
+
+  return vec4f(color, 1.0);
+}
+`,
+      });
+
+      const displayShader = device.createShaderModule({
+        code: /* wgsl */`
+struct DisplayUniforms {
+  resolution: vec2f,
+  rotation: f32,
+  centerY: f32,
+  pad0: f32,
+  pad1: f32,
+  pad2: f32,
+  pad3: f32,
+};
+
+@group(0) @binding(0) var<uniform> d: DisplayUniforms;
+@group(0) @binding(1) var cloudSampler: sampler;
+@group(0) @binding(2) var cloudTexture: texture_2d<f32>;
+
+fn rotate(p: vec2f, angle: f32) -> vec2f {
+  let c = cos(angle);
+  let s = sin(angle);
+  return mat2x2f(c, s, -s, c) * p;
+}
+
+@vertex
+fn vs(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4f {
+  let positions = array<vec2f, 3>(
+    vec2f(-1.0, -3.0),
+    vec2f( 3.0,  1.0),
+    vec2f(-1.0,  1.0)
+  );
+
+  return vec4f(positions[vertexIndex], 0.0, 1.0);
+}
+
+@fragment
+fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
+  let minResolution = min(d.resolution.x, d.resolution.y);
+  var uv = (position.xy * 2.0 - d.resolution) / minResolution;
+  uv.y = -uv.y;
+
+  let center = vec2f(0.0, d.centerY);
+  let sourceUv = rotate(uv - center, -d.rotation) + center;
+  var texCoord = sourceUv * minResolution / d.resolution;
+  texCoord.y = -texCoord.y;
+  texCoord = texCoord * 0.5 + vec2f(0.5, 0.5);
+
+  let inside = step(0.0, texCoord.x)
+    * step(texCoord.x, 1.0)
+    * step(0.0, texCoord.y)
+    * step(texCoord.y, 1.0);
+  let sampled = textureSampleLevel(cloudTexture, cloudSampler, clamp(texCoord, vec2f(0.0), vec2f(1.0)), 0.0);
+  return vec4f(sampled.rgb * inside, 1.0);
+}
+`,
+      });
+
+      const generateBindGroupLayout = device.createBindGroupLayout({
+        entries: [
+          {
+            binding: 0,
+            visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+            buffer: { type: 'uniform' },
+          },
+        ],
+      });
+
+      const generateBindGroup = device.createBindGroup({
+        layout: generateBindGroupLayout,
+        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
+      });
+
+      const generatePipelineLayout = device.createPipelineLayout({
+        bindGroupLayouts: [generateBindGroupLayout],
+      });
+
+      const cloudPipeline = device.createRenderPipeline({
+        layout: generatePipelineLayout,
+        vertex: { module: cloudShader, entryPoint: 'vs' },
+        fragment: { module: cloudShader, entryPoint: 'fs', targets: [{ format }] },
+        primitive: { topology: 'triangle-list' },
+      });
+
+      const savePipeline = device.createRenderPipeline({
+        layout: generatePipelineLayout,
+        vertex: { module: cloudShader, entryPoint: 'vs' },
+        fragment: { module: cloudShader, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
+        primitive: { topology: 'triangle-list' },
+      });
+
+      const displayUniformBuffer = device.createBuffer({
+        size: 32,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      const cloudSampler = device.createSampler({
+        magFilter: 'linear',
+        minFilter: 'linear',
+      });
+
+      const displayBindGroupLayout = device.createBindGroupLayout({
+        entries: [
+          {
+            binding: 0,
+            visibility: GPUShaderStage.FRAGMENT,
+            buffer: { type: 'uniform' },
+          },
+          {
+            binding: 1,
+            visibility: GPUShaderStage.FRAGMENT,
+            sampler: { type: 'filtering' },
+          },
+          {
+            binding: 2,
+            visibility: GPUShaderStage.FRAGMENT,
+            texture: { sampleType: 'float' },
+          },
+        ],
+      });
+
+      const displayPipelineLayout = device.createPipelineLayout({
+        bindGroupLayouts: [displayBindGroupLayout],
+      });
+
+      const displayPipeline = device.createRenderPipeline({
+        layout: displayPipelineLayout,
+        vertex: { module: displayShader, entryPoint: 'vs' },
+        fragment: { module: displayShader, entryPoint: 'fs', targets: [{ format }] },
+        primitive: { topology: 'triangle-list' },
+      });
+
+      let offscreenTexture = null;
+      let offscreenView = null;
+      let displayBindGroup = null;
+      let generatedTextureDirty = true;
+
+      function resize() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+        const height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+        let changed = false;
+
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+          changed = true;
+          generatedTextureDirty = true;
+        }
+
+        if (offscreenTexture === null || changed) {
+          if (offscreenTexture !== null) {
+            offscreenTexture.destroy();
+          }
+
+          offscreenTexture = device.createTexture({
+            size: [canvas.width, canvas.height],
+            format,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+          });
+          offscreenView = offscreenTexture.createView();
+          displayBindGroup = device.createBindGroup({
+            layout: displayBindGroupLayout,
+            entries: [
+              { binding: 0, resource: { buffer: displayUniformBuffer } },
+              { binding: 1, resource: cloudSampler },
+              { binding: 2, resource: offscreenView },
+            ],
+          });
+          generatedTextureDirty = true;
+        }
+
+        return changed;
+      }
+
+      function getCurrentRotationDeg() {
+        const params = readParams();
+        return params.rotation + spinOffsetDeg;
+      }
+
+      function updateGenerateUniforms(width = canvas.width, height = canvas.height, rotationRad = 0) {
+        const params = readParams();
+        const viewScale = getViewScale(params);
+        const data = new Float32Array([
+          width,
+          height,
+          params.count,
+          params.ringRadius,
+          params.cloudSize,
+          params.cloudAspect,
+          params.cloud,
+          params.swirl,
+          params.paper,
+          params.softness,
+          params.phase * Math.PI / 180,
+          params.phaseCycles,
+          rotationRad,
+          seed,
+          params.orientation,
+          params.centerY,
+          params.sphereAxisX,
+          params.sphereAxisY,
+          params.sphereAxisZ,
+          0,
+          params.spiralTurns,
+          viewScale,
+          params.outerFadeStart,
+          params.outerFadeSpeed,
+        ]);
+
+        device.queue.writeBuffer(uniformBuffer, 0, data);
+      }
+
+      function updateDisplayUniforms() {
+        const params = readParams();
+        const data = new Float32Array([
+          canvas.width,
+          canvas.height,
+          getCurrentRotationDeg() * Math.PI / 180,
+          params.centerY,
+          0,
+          0,
+          0,
+          0,
+        ]);
+
+        device.queue.writeBuffer(displayUniformBuffer, 0, data);
+      }
+
+      function renderGeneratedTexture() {
+        updateGenerateUniforms(canvas.width, canvas.height, 0);
+
+        const encoder = device.createCommandEncoder();
+
+        const pass = encoder.beginRenderPass({
+          colorAttachments: [
+            {
+              view: offscreenView,
+              clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+              loadOp: 'clear',
+              storeOp: 'store',
+            },
+          ],
+        });
+
+        pass.setBindGroup(0, generateBindGroup);
+        pass.setPipeline(cloudPipeline);
+        pass.draw(3);
+        pass.end();
+
+        device.queue.submit([encoder.finish()]);
+        generatedTextureDirty = false;
+      }
+
+      async function saveSquarePng() {
+        resize();
+
+        const size = Math.min(canvas.width, canvas.height);
+        const rotationRad = getCurrentRotationDeg() * Math.PI / 180;
+        updateGenerateUniforms(size, size, rotationRad);
+
+        const offTex = device.createTexture({
+          size: [size, size],
+          format: 'rgba8unorm',
+          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+        });
+
+        const bytesPerRow = Math.ceil(size * 4 / 256) * 256;
+        const readBuf = device.createBuffer({
+          size: bytesPerRow * size,
+          usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        });
+
+        const encoder = device.createCommandEncoder();
+        const pass = encoder.beginRenderPass({
+          colorAttachments: [
+            {
+              view: offTex.createView(),
+              clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+              loadOp: 'clear',
+              storeOp: 'store',
+            },
+          ],
+        });
+
+        pass.setBindGroup(0, generateBindGroup);
+        pass.setPipeline(savePipeline);
+        pass.draw(3);
+        pass.end();
+
+        encoder.copyTextureToBuffer(
+          { texture: offTex },
+          { buffer: readBuf, bytesPerRow },
+          [size, size],
+        );
+        device.queue.submit([encoder.finish()]);
+
+        await readBuf.mapAsync(GPUMapMode.READ);
+        const raw = new Uint8Array(readBuf.getMappedRange());
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = size;
+        exportCanvas.height = size;
+
+        const exportContext = exportCanvas.getContext('2d');
+        if (!exportContext) {
+          readBuf.unmap();
+          readBuf.destroy();
+          offTex.destroy();
+          throw new Error('PNG保存用の2Dコンテキストを取得できませんでした。');
+        }
+
+        const imgData = exportContext.createImageData(size, size);
+        for (let row = 0; row < size; row++) {
+          const srcStart = row * bytesPerRow;
+          const dstStart = row * size * 4;
+          imgData.data.set(raw.subarray(srcStart, srcStart + size * 4), dstStart);
+        }
+
+        readBuf.unmap();
+        readBuf.destroy();
+        offTex.destroy();
+
+        exportContext.putImageData(imgData, 0, 0);
+
+        const blob = await new Promise((resolve, reject) => {
+          exportCanvas.toBlob((pngBlob) => {
+            if (pngBlob) {
+              resolve(pngBlob);
+              return;
+            }
+            reject(new Error('PNGの生成に失敗しました。'));
+          }, 'image/png');
+        });
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        link.href = url;
+        link.download = `phase-cloud-ring-${timestamp}.png`;
+        link.click();
+        URL.revokeObjectURL(url);
+
+        render(true);
+      }
+
+      function renderDisplay() {
+        updateDisplayUniforms();
+
+        const view = context.getCurrentTexture().createView();
+        const encoder = device.createCommandEncoder();
+
+        const pass = encoder.beginRenderPass({
+          colorAttachments: [
+            {
+              view,
+              clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+              loadOp: 'clear',
+              storeOp: 'store',
+            },
+          ],
+        });
+
+        pass.setBindGroup(0, displayBindGroup);
+        pass.setPipeline(displayPipeline);
+        pass.draw(3);
+        pass.end();
+
+        device.queue.submit([encoder.finish()]);
+      }
+
+      function render(regenerate = false) {
+        resize();
+
+        if (regenerate) {
+          generatedTextureDirty = true;
+        }
+
+        if (generatedTextureDirty) {
+          renderGeneratedTexture();
+        }
+
+        renderDisplay();
+      }
+
+      animationLoop = (nowMs) => {
+        if (lastTickMs === 0) lastTickMs = nowMs;
+        if (lastRenderMs === 0) lastRenderMs = nowMs;
+
+        const params = readMotionParams();
+        const deltaMs = nowMs - lastTickMs;
+        lastTickMs = nowMs;
+
+        const shouldRotate = params.autoRotate && params.rotationSpeed !== 0;
+
+        if (shouldRotate) {
+          spinOffsetDeg += params.rotationSpeed * (deltaMs / 1000);
+        }
+
+        if (shouldRotate) {
+          const frameIntervalMs = 1000 / Math.max(1, params.refreshRate);
+          if (nowMs - lastRenderMs >= frameIntervalMs) {
+            render();
+            lastRenderMs = nowMs;
+          }
+        } else {
+          stopAnimation();
+          return;
+        }
+
+        animationFrameId = requestAnimationFrame(animationLoop);
+      };
+
+      for (const input of Object.values(controls)) {
+        input.addEventListener('input', () => {
+          syncLabels();
+          saveSettings();
+
+          if (input === controls.rotationSpeed || input === controls.refreshRate) {
+            ensureAnimation();
+          }
+        });
+      }
+
+      autoRotateEl.addEventListener('change', () => {
+        syncLabels();
+        saveSettings();
+        render();
+        ensureAnimation();
+      });
+
+      applySettingsButton.addEventListener('click', () => {
+        applyInputParams();
+        saveSettings();
+        render(true);
+        ensureAnimation();
+      });
+
+      rerollButton.addEventListener('click', () => {
+        seed = Math.floor(Math.random() * 1_000_000_000);
+        render(true);
+      });
+
+      resetMotionButton.addEventListener('click', () => {
+        spinOffsetDeg = 0;
+        render();
+        ensureAnimation();
+      });
+
+      savePngButton.addEventListener('click', async () => {
+        savePngButton.disabled = true;
+        try {
+          await saveSquarePng();
+        } catch (err) {
+          console.error(err);
+          error.textContent = `PNG保存でエラーが発生しました: ${err.message}`;
+          error.style.display = 'grid';
+        } finally {
+          savePngButton.disabled = false;
+          ensureAnimation();
+        }
+      });
+
+      window.addEventListener('resize', () => render());
+
+      runSelfTests();
+      resize();
+      syncLabels();
+      render(true);
+      ensureAnimation();
+
+      window.addEventListener('beforeunload', () => {
+        if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+      });
+    }
+
+    main().catch((err) => {
+      console.error(err);
+      error.textContent = `WebGPU初期化でエラーが発生しました: ${err.message}`;
+      error.style.display = 'grid';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1343 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>棒人間画像生成器</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7f8;
+      --panel: #ffffff;
+      --ink: #172025;
+      --muted: #65727a;
+      --line: #d7dee2;
+      --accent: #167c80;
+      --accent-dark: #0f5e62;
+      --accent-soft: #dff2f1;
+      --danger: #a54231;
+      --shadow: 0 18px 42px rgba(28, 42, 48, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(22, 124, 128, 0.10), transparent 34%),
+        linear-gradient(315deg, rgba(191, 88, 55, 0.08), transparent 30%),
+        var(--bg);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .app {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 48px);
+      line-height: 1.05;
+      font-weight: 780;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .controls,
+    .stage-wrap {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(215, 222, 226, 0.9);
+      box-shadow: var(--shadow);
+    }
+
+    .controls {
+      border-radius: 8px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .stage-wrap {
+      border-radius: 8px;
+      padding: 18px;
+      min-width: 0;
+    }
+
+    .control-group {
+      display: grid;
+      gap: 10px;
+    }
+
+    .group-title {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .pose-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      max-height: 492px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .pose-button,
+    .action-button {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+      transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+    }
+
+    .pose-button:hover,
+    .action-button:hover {
+      transform: translateY(-1px);
+      border-color: var(--accent);
+    }
+
+    .pose-button.active {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent-dark);
+      font-weight: 760;
+    }
+
+    .action-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .action-button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 780;
+    }
+
+    .action-button.primary:hover {
+      background: var(--accent-dark);
+      border-color: var(--accent-dark);
+    }
+
+    .action-button.reset {
+      color: var(--danger);
+    }
+
+    .tool-options {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .field input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .field select {
+      width: 100%;
+      min-height: 38px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+    }
+
+    .color-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .color-row input[type="color"] {
+      width: 44px;
+      height: 34px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+    }
+
+    .value {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      font-size: 13px;
+    }
+
+    .stage {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1.2 / 1;
+      min-height: 420px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background:
+        linear-gradient(#edf2f4 1px, transparent 1px),
+        linear-gradient(90deg, #edf2f4 1px, transparent 1px),
+        #fbfcfd;
+      background-size: 28px 28px;
+      touch-action: none;
+    }
+
+    #stickmanSvg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .stick-line {
+      fill: none;
+      stroke: var(--stick-color, #111820);
+      stroke-width: var(--stick-width, 9);
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .head {
+      fill: #fff;
+      stroke: var(--stick-color, #111820);
+      stroke-width: var(--stick-width, 9);
+    }
+
+    .joint {
+      fill: #fff;
+      stroke: var(--accent);
+      stroke-width: 3;
+      cursor: grab;
+      filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.14));
+    }
+
+    .joint:hover,
+    .joint.active {
+      fill: var(--accent-soft);
+      stroke: var(--accent-dark);
+    }
+
+    .joint.active {
+      cursor: grabbing;
+    }
+
+    .label {
+      fill: #506168;
+      font-size: 12px;
+      font-weight: 700;
+      pointer-events: none;
+      paint-order: stroke;
+      stroke: #fff;
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
+
+    .status {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 10px;
+    }
+
+    @media (max-width: 860px) {
+      .app {
+        width: min(100% - 20px, 680px);
+        padding: 16px 0;
+      }
+
+      .topbar {
+        align-items: start;
+        flex-direction: column;
+        margin-bottom: 12px;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        order: 2;
+      }
+
+      .stage-wrap {
+        order: 1;
+        padding: 10px;
+      }
+
+      .stage {
+        min-height: 360px;
+      }
+
+      .pose-grid {
+        max-height: 292px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <h1>棒人間画像生成器</h1>
+        <p class="subtitle">ポーズを選び、関節をドラッグして調整し、SVGで保存できます。</p>
+      </div>
+    </header>
+
+    <section class="workspace" aria-label="棒人間エディター">
+      <aside class="controls" aria-label="操作パネル">
+        <div class="control-group">
+          <div class="group-title">ポーズ</div>
+          <div class="pose-grid" id="poseButtons"></div>
+        </div>
+
+        <div class="control-group tool-options">
+          <div class="group-title">見た目</div>
+          <div class="field">
+            <label for="strokeWidth">線の太さ</label>
+            <input id="strokeWidth" type="range" min="4" max="18" value="9">
+            <span class="value" id="strokeWidthValue">9 px</span>
+          </div>
+          <div class="field">
+            <label for="stickColor">線の色</label>
+            <div class="color-row">
+              <input id="stickColor" type="color" value="#111820">
+              <span class="value" id="stickColorValue">#111820</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-group tool-options">
+          <div class="group-title">パラパラ漫画</div>
+          <div class="field">
+            <label for="sequenceSelect">連番セット</label>
+            <select id="sequenceSelect"></select>
+          </div>
+          <div class="action-row">
+            <button class="action-button" id="downloadSequenceBtn" type="button">連番SVGをダウンロード</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="group-title">ファイル</div>
+          <div class="action-row">
+            <button class="action-button primary" id="downloadBtn" type="button">SVGをダウンロード</button>
+            <button class="action-button reset" id="resetBtn" type="button">位置をリセット</button>
+          </div>
+        </div>
+      </aside>
+
+      <section class="stage-wrap" aria-label="編集キャンバス">
+        <div class="stage">
+          <svg id="stickmanSvg" viewBox="0 0 720 600" role="img" aria-label="編集できる棒人間">
+            <g id="drawingLayer"></g>
+            <g id="handleLayer"></g>
+          </svg>
+        </div>
+        <div class="status" id="statusText">関節の丸い点をドラッグして位置を変えられます。</div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const svg = document.getElementById("stickmanSvg");
+    const drawingLayer = document.getElementById("drawingLayer");
+    const handleLayer = document.getElementById("handleLayer");
+    const poseButtons = document.getElementById("poseButtons");
+    const resetBtn = document.getElementById("resetBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const statusText = document.getElementById("statusText");
+    const strokeWidthInput = document.getElementById("strokeWidth");
+    const strokeWidthValue = document.getElementById("strokeWidthValue");
+    const stickColorInput = document.getElementById("stickColor");
+    const stickColorValue = document.getElementById("stickColorValue");
+    const sequenceSelect = document.getElementById("sequenceSelect");
+    const downloadSequenceBtn = document.getElementById("downloadSequenceBtn");
+
+    const labels = {
+      head: "頭",
+      neck: "首",
+      leftHand: "左手",
+      rightHand: "右手",
+      leftFoot: "左足",
+      rightFoot: "右足"
+    };
+
+    const poses = {
+      standing: {
+        name: "直立",
+        points: {
+          head: [360, 116],
+          neck: [360, 185],
+          chest: [360, 265],
+          hip: [360, 356],
+          leftElbow: [296, 253],
+          leftHand: [260, 332],
+          rightElbow: [424, 253],
+          rightHand: [460, 332],
+          leftKnee: [318, 452],
+          leftFoot: [288, 540],
+          rightKnee: [402, 452],
+          rightFoot: [432, 540]
+        }
+      },
+      wave: {
+        name: "手を振る",
+        points: {
+          head: [360, 116],
+          neck: [360, 185],
+          chest: [360, 265],
+          hip: [360, 356],
+          leftElbow: [300, 252],
+          leftHand: [256, 326],
+          rightElbow: [434, 172],
+          rightHand: [468, 88],
+          leftKnee: [318, 452],
+          leftFoot: [286, 540],
+          rightKnee: [402, 452],
+          rightFoot: [430, 540]
+        }
+      },
+      wave2: {
+        name: "手を振る2",
+        hidden: true,
+        points: {
+          head: [356, 116],
+          neck: [360, 186],
+          chest: [360, 266],
+          hip: [360, 356],
+          leftElbow: [292, 250],
+          leftHand: [248, 322],
+          rightElbow: [448, 154],
+          rightHand: [536, 140],
+          leftKnee: [318, 452],
+          leftFoot: [286, 540],
+          rightKnee: [402, 452],
+          rightFoot: [430, 540]
+        }
+      },
+      bothWave: {
+        name: "両手振り",
+        points: {
+          head: [360, 110],
+          neck: [360, 182],
+          chest: [360, 262],
+          hip: [360, 352],
+          leftElbow: [276, 154],
+          leftHand: [208, 100],
+          rightElbow: [444, 154],
+          rightHand: [512, 100],
+          leftKnee: [318, 450],
+          leftFoot: [286, 538],
+          rightKnee: [402, 450],
+          rightFoot: [434, 538]
+        }
+      },
+      bothWave2: {
+        name: "両手振り2",
+        hidden: true,
+        points: {
+          head: [360, 112],
+          neck: [360, 184],
+          chest: [360, 264],
+          hip: [360, 352],
+          leftElbow: [262, 176],
+          leftHand: [196, 136],
+          rightElbow: [458, 176],
+          rightHand: [524, 136],
+          leftKnee: [318, 450],
+          leftFoot: [286, 538],
+          rightKnee: [402, 450],
+          rightFoot: [434, 538]
+        }
+      },
+      salute: {
+        name: "敬礼",
+        points: {
+          head: [360, 116],
+          neck: [360, 186],
+          chest: [360, 266],
+          hip: [360, 356],
+          leftElbow: [298, 256],
+          leftHand: [258, 332],
+          rightElbow: [438, 176],
+          rightHand: [396, 116],
+          leftKnee: [318, 452],
+          leftFoot: [288, 540],
+          rightKnee: [402, 452],
+          rightFoot: [432, 540]
+        }
+      },
+      bow: {
+        name: "おじぎ",
+        points: {
+          head: [414, 152],
+          neck: [364, 202],
+          chest: [336, 274],
+          hip: [350, 360],
+          leftElbow: [288, 294],
+          leftHand: [250, 372],
+          rightElbow: [386, 312],
+          rightHand: [430, 390],
+          leftKnee: [318, 454],
+          leftFoot: [286, 540],
+          rightKnee: [402, 452],
+          rightFoot: [432, 540]
+        }
+      },
+      pointRight: {
+        name: "右を指す",
+        points: {
+          head: [360, 116],
+          neck: [360, 186],
+          chest: [360, 266],
+          hip: [360, 356],
+          leftElbow: [300, 254],
+          leftHand: [252, 326],
+          rightElbow: [458, 220],
+          rightHand: [562, 218],
+          leftKnee: [318, 452],
+          leftFoot: [286, 540],
+          rightKnee: [402, 452],
+          rightFoot: [432, 540]
+        }
+      },
+      pointLeft: {
+        name: "左を指す",
+        points: {
+          head: [360, 116],
+          neck: [360, 186],
+          chest: [360, 266],
+          hip: [360, 356],
+          leftElbow: [262, 220],
+          leftHand: [158, 218],
+          rightElbow: [420, 254],
+          rightHand: [468, 326],
+          leftKnee: [318, 452],
+          leftFoot: [286, 540],
+          rightKnee: [402, 452],
+          rightFoot: [432, 540]
+        }
+      },
+      cheer: {
+        name: "応援",
+        points: {
+          head: [360, 104],
+          neck: [360, 176],
+          chest: [360, 256],
+          hip: [360, 346],
+          leftElbow: [284, 126],
+          leftHand: [250, 54],
+          rightElbow: [436, 126],
+          rightHand: [470, 54],
+          leftKnee: [308, 446],
+          leftFoot: [266, 536],
+          rightKnee: [412, 446],
+          rightFoot: [454, 536]
+        }
+      },
+      handsUp: {
+        name: "万歳",
+        points: {
+          head: [360, 106],
+          neck: [360, 178],
+          chest: [360, 258],
+          hip: [360, 350],
+          leftElbow: [314, 126],
+          leftHand: [282, 58],
+          rightElbow: [406, 126],
+          rightHand: [438, 58],
+          leftKnee: [318, 450],
+          leftFoot: [288, 538],
+          rightKnee: [402, 450],
+          rightFoot: [432, 538]
+        }
+      },
+      thinking: {
+        name: "考える",
+        points: {
+          head: [360, 116],
+          neck: [360, 186],
+          chest: [360, 266],
+          hip: [360, 356],
+          leftElbow: [296, 260],
+          leftHand: [250, 342],
+          rightElbow: [420, 206],
+          rightHand: [388, 142],
+          leftKnee: [318, 452],
+          leftFoot: [286, 540],
+          rightKnee: [402, 452],
+          rightFoot: [432, 540]
+        }
+      },
+      shrug: {
+        name: "肩すくめ",
+        points: {
+          head: [360, 116],
+          neck: [360, 186],
+          chest: [360, 266],
+          hip: [360, 356],
+          leftElbow: [288, 218],
+          leftHand: [226, 206],
+          rightElbow: [432, 218],
+          rightHand: [494, 206],
+          leftKnee: [318, 452],
+          leftFoot: [286, 540],
+          rightKnee: [402, 452],
+          rightFoot: [432, 540]
+        }
+      },
+      walk: {
+        name: "歩く",
+        points: {
+          head: [376, 116],
+          neck: [368, 186],
+          chest: [360, 266],
+          hip: [356, 356],
+          leftElbow: [294, 240],
+          leftHand: [252, 300],
+          rightElbow: [430, 282],
+          rightHand: [476, 344],
+          leftKnee: [322, 446],
+          leftFoot: [260, 526],
+          rightKnee: [416, 430],
+          rightFoot: [496, 476]
+        }
+      },
+      walk2: {
+        name: "歩く2",
+        hidden: true,
+        points: {
+          head: [344, 116],
+          neck: [352, 186],
+          chest: [360, 266],
+          hip: [364, 356],
+          leftElbow: [290, 282],
+          leftHand: [244, 344],
+          rightElbow: [426, 238],
+          rightHand: [468, 298],
+          leftKnee: [304, 430],
+          leftFoot: [224, 476],
+          rightKnee: [398, 446],
+          rightFoot: [460, 526]
+        }
+      },
+      kick: {
+        name: "キック",
+        points: {
+          head: [360, 116],
+          neck: [360, 186],
+          chest: [360, 266],
+          hip: [360, 356],
+          leftElbow: [296, 244],
+          leftHand: [244, 294],
+          rightElbow: [428, 244],
+          rightHand: [486, 286],
+          leftKnee: [322, 452],
+          leftFoot: [296, 540],
+          rightKnee: [468, 374],
+          rightFoot: [596, 360]
+        }
+      },
+      highKick: {
+        name: "ハイキック",
+        points: {
+          head: [354, 116],
+          neck: [360, 186],
+          chest: [366, 266],
+          hip: [352, 354],
+          leftElbow: [296, 222],
+          leftHand: [222, 206],
+          rightElbow: [432, 224],
+          rightHand: [506, 204],
+          leftKnee: [318, 452],
+          leftFoot: [284, 540],
+          rightKnee: [448, 288],
+          rightFoot: [554, 176]
+        }
+      },
+      squat: {
+        name: "しゃがむ",
+        points: {
+          head: [360, 164],
+          neck: [360, 234],
+          chest: [360, 306],
+          hip: [360, 376],
+          leftElbow: [300, 304],
+          leftHand: [246, 356],
+          rightElbow: [420, 304],
+          rightHand: [474, 356],
+          leftKnee: [294, 432],
+          leftFoot: [214, 492],
+          rightKnee: [426, 432],
+          rightFoot: [506, 492]
+        }
+      },
+      yoga: {
+        name: "ヨガ",
+        points: {
+          head: [360, 118],
+          neck: [360, 188],
+          chest: [360, 268],
+          hip: [360, 350],
+          leftElbow: [300, 216],
+          leftHand: [250, 168],
+          rightElbow: [420, 216],
+          rightHand: [470, 168],
+          leftKnee: [290, 416],
+          leftFoot: [214, 376],
+          rightKnee: [430, 416],
+          rightFoot: [506, 376]
+        }
+      },
+      boxing: {
+        name: "ボクシング",
+        points: {
+          head: [378, 116],
+          neck: [368, 186],
+          chest: [358, 266],
+          hip: [350, 356],
+          leftElbow: [302, 218],
+          leftHand: [348, 166],
+          rightElbow: [454, 212],
+          rightHand: [540, 188],
+          leftKnee: [300, 440],
+          leftFoot: [236, 518],
+          rightKnee: [416, 438],
+          rightFoot: [496, 500]
+        }
+      },
+      boxing2: {
+        name: "ボクシング2",
+        hidden: true,
+        points: {
+          head: [392, 114],
+          neck: [380, 184],
+          chest: [370, 264],
+          hip: [360, 356],
+          leftElbow: [308, 222],
+          leftHand: [352, 170],
+          rightElbow: [492, 206],
+          rightHand: [622, 196],
+          leftKnee: [308, 440],
+          leftFoot: [244, 518],
+          rightKnee: [432, 438],
+          rightFoot: [524, 500]
+        }
+      },
+      throwPose: {
+        name: "投げる",
+        points: {
+          head: [382, 112],
+          neck: [370, 184],
+          chest: [358, 266],
+          hip: [342, 354],
+          leftElbow: [296, 284],
+          leftHand: [230, 332],
+          rightElbow: [438, 142],
+          rightHand: [540, 88],
+          leftKnee: [292, 430],
+          leftFoot: [212, 506],
+          rightKnee: [420, 432],
+          rightFoot: [488, 522]
+        }
+      },
+      catchPose: {
+        name: "受け取る",
+        points: {
+          head: [346, 116],
+          neck: [356, 186],
+          chest: [366, 266],
+          hip: [372, 356],
+          leftElbow: [286, 210],
+          leftHand: [214, 180],
+          rightElbow: [442, 210],
+          rightHand: [514, 180],
+          leftKnee: [324, 448],
+          leftFoot: [260, 522],
+          rightKnee: [430, 444],
+          rightFoot: [500, 512]
+        }
+      },
+      kneel: {
+        name: "片膝",
+        points: {
+          head: [360, 126],
+          neck: [360, 196],
+          chest: [360, 276],
+          hip: [360, 362],
+          leftElbow: [298, 278],
+          leftHand: [252, 350],
+          rightElbow: [422, 278],
+          rightHand: [468, 350],
+          leftKnee: [292, 438],
+          leftFoot: [218, 526],
+          rightKnee: [442, 430],
+          rightFoot: [526, 430]
+        }
+      },
+      stretch: {
+        name: "ストレッチ",
+        points: {
+          head: [336, 132],
+          neck: [360, 198],
+          chest: [384, 274],
+          hip: [360, 356],
+          leftElbow: [296, 168],
+          leftHand: [218, 128],
+          rightElbow: [452, 214],
+          rightHand: [546, 202],
+          leftKnee: [300, 448],
+          leftFoot: [214, 526],
+          rightKnee: [430, 432],
+          rightFoot: [520, 472]
+        }
+      },
+      clap: {
+        name: "拍手",
+        points: {
+          head: [360, 116],
+          neck: [360, 186],
+          chest: [360, 266],
+          hip: [360, 356],
+          leftElbow: [306, 226],
+          leftHand: [350, 210],
+          rightElbow: [414, 226],
+          rightHand: [370, 210],
+          leftKnee: [318, 452],
+          leftFoot: [286, 540],
+          rightKnee: [402, 452],
+          rightFoot: [432, 540]
+        }
+      },
+      clap2: {
+        name: "拍手2",
+        hidden: true,
+        points: {
+          head: [360, 116],
+          neck: [360, 186],
+          chest: [360, 266],
+          hip: [360, 356],
+          leftElbow: [292, 220],
+          leftHand: [314, 190],
+          rightElbow: [428, 220],
+          rightHand: [406, 190],
+          leftKnee: [318, 452],
+          leftFoot: [286, 540],
+          rightKnee: [402, 452],
+          rightFoot: [432, 540]
+        }
+      },
+      swim: {
+        name: "泳ぐ",
+        points: {
+          head: [258, 216],
+          neck: [326, 226],
+          chest: [406, 236],
+          hip: [500, 246],
+          leftElbow: [336, 164],
+          leftHand: [384, 96],
+          rightElbow: [340, 294],
+          rightHand: [392, 360],
+          leftKnee: [584, 208],
+          leftFoot: [652, 150],
+          rightKnee: [584, 286],
+          rightFoot: [652, 344]
+        }
+      },
+      sleep: {
+        name: "寝転ぶ",
+        points: {
+          head: [180, 324],
+          neck: [250, 324],
+          chest: [340, 324],
+          hip: [448, 324],
+          leftElbow: [286, 266],
+          leftHand: [226, 224],
+          rightElbow: [286, 382],
+          rightHand: [226, 424],
+          leftKnee: [542, 284],
+          leftFoot: [634, 246],
+          rightKnee: [542, 364],
+          rightFoot: [634, 404]
+        }
+      },
+      run: {
+        name: "走る",
+        points: {
+          head: [386, 116],
+          neck: [374, 188],
+          chest: [360, 266],
+          hip: [348, 356],
+          leftElbow: [292, 222],
+          leftHand: [244, 174],
+          rightElbow: [430, 292],
+          rightHand: [502, 318],
+          leftKnee: [284, 420],
+          leftFoot: [202, 452],
+          rightKnee: [426, 420],
+          rightFoot: [486, 532]
+        }
+      },
+      run2: {
+        name: "走る2",
+        hidden: true,
+        points: {
+          head: [376, 114],
+          neck: [366, 186],
+          chest: [356, 266],
+          hip: [356, 356],
+          leftElbow: [292, 292],
+          leftHand: [220, 318],
+          rightElbow: [432, 222],
+          rightHand: [480, 174],
+          leftKnee: [304, 420],
+          leftFoot: [244, 532],
+          rightKnee: [432, 420],
+          rightFoot: [514, 452]
+        }
+      },
+      jump: {
+        name: "ジャンプ",
+        points: {
+          head: [360, 94],
+          neck: [360, 164],
+          chest: [360, 246],
+          hip: [360, 334],
+          leftElbow: [282, 144],
+          leftHand: [220, 82],
+          rightElbow: [438, 144],
+          rightHand: [500, 82],
+          leftKnee: [292, 416],
+          leftFoot: [234, 490],
+          rightKnee: [428, 416],
+          rightFoot: [486, 490]
+        }
+      },
+      sit: {
+        name: "座る",
+        points: {
+          head: [360, 118],
+          neck: [360, 188],
+          chest: [360, 268],
+          hip: [360, 348],
+          leftElbow: [304, 292],
+          leftHand: [250, 348],
+          rightElbow: [416, 292],
+          rightHand: [470, 348],
+          leftKnee: [292, 392],
+          leftFoot: [232, 392],
+          rightKnee: [428, 392],
+          rightFoot: [488, 392]
+        }
+      },
+      dance: {
+        name: "ダンス",
+        points: {
+          head: [352, 110],
+          neck: [370, 184],
+          chest: [388, 266],
+          hip: [352, 350],
+          leftElbow: [300, 174],
+          leftHand: [238, 126],
+          rightElbow: [456, 238],
+          rightHand: [522, 202],
+          leftKnee: [292, 430],
+          leftFoot: [212, 500],
+          rightKnee: [432, 406],
+          rightFoot: [520, 380]
+        }
+      },
+      dance2: {
+        name: "ダンス2",
+        hidden: true,
+        points: {
+          head: [368, 110],
+          neck: [350, 184],
+          chest: [332, 266],
+          hip: [368, 350],
+          leftElbow: [264, 238],
+          leftHand: [198, 202],
+          rightElbow: [420, 174],
+          rightHand: [482, 126],
+          leftKnee: [288, 406],
+          leftFoot: [200, 380],
+          rightKnee: [428, 430],
+          rightFoot: [508, 500]
+        }
+      }
+    };
+
+    const animationSequences = {
+      wave: {
+        name: "手を振る 1-2",
+        frames: ["wave", "wave2"]
+      },
+      bothWave: {
+        name: "両手振り 1-2",
+        frames: ["bothWave", "bothWave2"]
+      },
+      walk: {
+        name: "歩く 1-2",
+        frames: ["walk", "walk2"]
+      },
+      boxing: {
+        name: "ボクシング 1-2",
+        frames: ["boxing", "boxing2"]
+      },
+      clap: {
+        name: "拍手 1-2",
+        frames: ["clap", "clap2"]
+      },
+      run: {
+        name: "走る 1-2",
+        frames: ["run", "run2"]
+      },
+      dance: {
+        name: "ダンス 1-2",
+        frames: ["dance", "dance2"]
+      }
+    };
+
+    const limbSegments = [
+      ["neck", "chest"],
+      ["chest", "hip"],
+      ["neck", "leftElbow"],
+      ["leftElbow", "leftHand"],
+      ["neck", "rightElbow"],
+      ["rightElbow", "rightHand"],
+      ["hip", "leftKnee"],
+      ["leftKnee", "leftFoot"],
+      ["hip", "rightKnee"],
+      ["rightKnee", "rightFoot"]
+    ];
+
+    const handleOrder = [
+      "head",
+      "neck",
+      "chest",
+      "hip",
+      "leftElbow",
+      "leftHand",
+      "rightElbow",
+      "rightHand",
+      "leftKnee",
+      "leftFoot",
+      "rightKnee",
+      "rightFoot"
+    ];
+
+    let activePose = "standing";
+    let points = clonePoints(poses[activePose].points);
+    let activeDrag = null;
+    let activeFrameIndex = 0;
+
+    function clonePoints(source) {
+      return Object.fromEntries(
+        Object.entries(source).map(([key, value]) => [key, [...value]])
+      );
+    }
+
+    function createSvgElement(name, attrs = {}) {
+      const element = document.createElementNS("http://www.w3.org/2000/svg", name);
+      Object.entries(attrs).forEach(([key, value]) => element.setAttribute(key, value));
+      return element;
+    }
+
+    function setPoint(element, pointId) {
+      const [x, y] = points[pointId];
+      element.setAttribute("cx", x);
+      element.setAttribute("cy", y);
+    }
+
+    function render() {
+      drawingLayer.replaceChildren();
+      handleLayer.replaceChildren();
+
+      const headRadius = Math.max(28, Math.hypot(
+        points.head[0] - points.neck[0],
+        points.head[1] - points.neck[1]
+      ) - 10);
+
+      drawingLayer.append(
+        createSvgElement("circle", {
+          class: "head",
+          cx: points.head[0],
+          cy: points.head[1],
+          r: headRadius
+        })
+      );
+
+      limbSegments.forEach(([from, to]) => {
+        drawingLayer.append(
+          createSvgElement("line", {
+            class: "stick-line",
+            x1: points[from][0],
+            y1: points[from][1],
+            x2: points[to][0],
+            y2: points[to][1]
+          })
+        );
+      });
+
+      handleOrder.forEach((pointId) => {
+        const radius = pointId === "head" ? 12 : 9;
+        const handle = createSvgElement("circle", {
+          class: pointId === activeDrag ? "joint active" : "joint",
+          "data-point": pointId,
+          r: radius,
+          tabindex: "0",
+          "aria-label": `${labels[pointId] || pointId}をドラッグ`
+        });
+        setPoint(handle, pointId);
+        handleLayer.append(handle);
+
+        if (labels[pointId]) {
+          const label = createSvgElement("text", {
+            class: "label",
+            x: points[pointId][0] + 14,
+            y: points[pointId][1] - 12
+          });
+          label.textContent = labels[pointId];
+          handleLayer.append(label);
+        }
+      });
+
+      document.documentElement.style.setProperty("--stick-width", strokeWidthInput.value);
+      document.documentElement.style.setProperty("--stick-color", stickColorInput.value);
+      strokeWidthValue.textContent = `${strokeWidthInput.value} px`;
+      stickColorValue.textContent = stickColorInput.value.toUpperCase();
+    }
+
+    function getSvgPoint(event) {
+      const point = svg.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      const transformed = point.matrixTransform(svg.getScreenCTM().inverse());
+      return [
+        Math.min(690, Math.max(30, transformed.x)),
+        Math.min(570, Math.max(30, transformed.y))
+      ];
+    }
+
+    function setActivePose(poseId) {
+      const sequence = animationSequences[poseId];
+      if (sequence && activePose === poseId) {
+        activeFrameIndex = (activeFrameIndex + 1) % sequence.frames.length;
+      } else {
+        activeFrameIndex = 0;
+      }
+
+      activePose = poseId;
+      const framePoseId = sequence ? sequence.frames[activeFrameIndex] : poseId;
+      points = clonePoints(poses[framePoseId].points);
+      document.querySelectorAll(".pose-button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.pose === poseId);
+      });
+      render();
+      const frameText = sequence ? ` ${activeFrameIndex + 1}/${sequence.frames.length}` : "";
+      statusText.textContent = `${poses[poseId].name}${frameText}のポーズに切り替えました。`;
+    }
+
+    function resetPose() {
+      activeFrameIndex = 0;
+      const sequence = animationSequences[activePose];
+      const framePoseId = sequence ? sequence.frames[activeFrameIndex] : activePose;
+      points = clonePoints(poses[framePoseId].points);
+      render();
+      statusText.textContent = "現在のポーズの初期位置に戻しました。";
+    }
+
+    function buildDownloadSvg() {
+      const exported = svg.cloneNode(true);
+      exported.querySelector("#handleLayer")?.remove();
+      exported.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      exported.setAttribute("width", "720");
+      exported.setAttribute("height", "600");
+      exported.setAttribute("viewBox", "0 0 720 600");
+      exported.setAttribute("role", "img");
+      exported.setAttribute("aria-label", "棒人間");
+
+      const style = createSvgElement("style");
+      style.textContent = `
+        .stick-line {
+          fill: none;
+          stroke: ${stickColorInput.value};
+          stroke-width: ${strokeWidthInput.value};
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+        .head {
+          fill: #ffffff;
+          stroke: ${stickColorInput.value};
+          stroke-width: ${strokeWidthInput.value};
+        }
+      `;
+      exported.prepend(style);
+      return `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(exported)}`;
+    }
+
+    function downloadSvg() {
+      const blob = new Blob([buildDownloadSvg()], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const sequence = animationSequences[activePose];
+      const frameSuffix = sequence ? `-${String(activeFrameIndex + 1).padStart(2, "0")}` : "";
+      link.download = `stickman-${activePose}${frameSuffix}.svg`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      statusText.textContent = "SVGを書き出しました。";
+    }
+
+    function downloadTextFile(filename, text) {
+      const blob = new Blob([text], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadSequence() {
+      const sequence = animationSequences[sequenceSelect.value];
+      if (!sequence) return;
+
+      const originalPose = activePose;
+      const originalPoints = clonePoints(points);
+      const originalFrameIndex = activeFrameIndex;
+
+      sequence.frames.forEach((poseId, index) => {
+        window.setTimeout(() => {
+          points = clonePoints(poses[poseId].points);
+          render();
+          const frameNumber = String(index + 1).padStart(2, "0");
+          downloadTextFile(`stickman-${sequenceSelect.value}-${frameNumber}-${poseId}.svg`, buildDownloadSvg());
+
+          if (index === sequence.frames.length - 1) {
+            activePose = originalPose;
+            points = originalPoints;
+            activeFrameIndex = originalFrameIndex;
+            render();
+            statusText.textContent = `${sequence.name}を${sequence.frames.length}枚の連番SVGで書き出しました。`;
+          }
+        }, index * 180);
+      });
+    }
+
+    function createPoseButtons() {
+      Object.entries(poses).forEach(([poseId, pose]) => {
+        if (pose.hidden) return;
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "pose-button";
+        button.dataset.pose = poseId;
+        button.textContent = pose.name;
+        button.addEventListener("click", () => setActivePose(poseId));
+        poseButtons.append(button);
+      });
+    }
+
+    function createSequenceOptions() {
+      Object.entries(animationSequences).forEach(([sequenceId, sequence]) => {
+        const option = document.createElement("option");
+        option.value = sequenceId;
+        option.textContent = sequence.name;
+        sequenceSelect.append(option);
+      });
+    }
+
+    svg.addEventListener("pointerdown", (event) => {
+      const target = event.target.closest(".joint");
+      if (!target) return;
+
+      activeDrag = target.dataset.point;
+      target.classList.add("active");
+      target.setPointerCapture(event.pointerId);
+      statusText.textContent = `${labels[activeDrag] || "関節"}を移動中です。`;
+    });
+
+    window.addEventListener("pointermove", (event) => {
+      if (!activeDrag) return;
+      event.preventDefault();
+      points[activeDrag] = getSvgPoint(event);
+      render();
+    });
+
+    window.addEventListener("pointerup", () => {
+      if (activeDrag) statusText.textContent = "位置を更新しました。";
+      activeDrag = null;
+      render();
+    });
+
+    window.addEventListener("pointercancel", () => {
+      activeDrag = null;
+      render();
+      statusText.textContent = "ドラッグをキャンセルしました。";
+    });
+
+    resetBtn.addEventListener("click", resetPose);
+    downloadBtn.addEventListener("click", downloadSvg);
+    downloadSequenceBtn.addEventListener("click", downloadSequence);
+    strokeWidthInput.addEventListener("input", render);
+    stickColorInput.addEventListener("input", render);
+
+    createPoseButtons();
+    createSequenceOptions();
+    setActivePose(activePose);
+  </script>
+</body>
+</html>

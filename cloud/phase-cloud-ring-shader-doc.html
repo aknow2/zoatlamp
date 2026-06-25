@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>phase-cloud-ring シェーダ実装解説</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0b0c;
+      --panel: #17181a;
+      --panel-2: #202226;
+      --text: #f2efe9;
+      --muted: #b8b1a8;
+      --line: #34373d;
+      --accent: #81c7b6;
+      --accent-2: #e3b46f;
+      --code: #101113;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.7;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(180deg, rgba(129, 199, 182, 0.08), transparent 360px),
+        var(--bg);
+    }
+
+    main {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 40px 0 64px;
+    }
+
+    header {
+      padding: 28px 0 32px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.28;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(28px, 4vw, 44px);
+    }
+
+    h2 {
+      margin: 44px 0 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      font-size: 26px;
+    }
+
+    h3 {
+      margin: 28px 0 10px;
+      font-size: 19px;
+      color: var(--accent);
+    }
+
+    p {
+      margin: 0 0 16px;
+      color: var(--muted);
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    code,
+    pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+    }
+
+    code {
+      color: #f5d8a7;
+    }
+
+    pre {
+      margin: 14px 0 22px;
+      padding: 16px;
+      overflow-x: auto;
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      line-height: 1.55;
+    }
+
+    .lead {
+      max-width: 860px;
+      color: #d9d3ca;
+      font-size: 17px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .summary article,
+    .note,
+    .flow,
+    table {
+      background: rgba(23, 24, 26, 0.94);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .summary article {
+      padding: 16px;
+    }
+
+    .summary h2 {
+      margin: 0 0 8px;
+      padding: 0;
+      border: 0;
+      font-size: 16px;
+      color: var(--accent-2);
+    }
+
+    .summary p {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .note {
+      margin: 18px 0;
+      padding: 16px 18px;
+    }
+
+    .note strong {
+      color: var(--text);
+    }
+
+    .flow {
+      display: grid;
+      gap: 1px;
+      overflow: hidden;
+      margin: 18px 0 26px;
+      background: var(--line);
+    }
+
+    .flow div {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 18px;
+      padding: 14px 16px;
+      background: var(--panel);
+    }
+
+    .flow b {
+      color: var(--accent-2);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      margin: 18px 0 26px;
+    }
+
+    th,
+    td {
+      padding: 11px 13px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--accent-2);
+      background: var(--panel-2);
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .formula {
+      display: block;
+      margin: 12px 0 18px;
+      padding: 12px 14px;
+      background: #111719;
+      border-left: 3px solid var(--accent);
+      color: #dfeee9;
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 820px) {
+      main {
+        width: min(100% - 28px, 1120px);
+        padding-top: 24px;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .flow div {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+
+      th,
+      td {
+        display: block;
+      }
+
+      th {
+        border-bottom: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>phase-cloud-ring シェーダ実装解説</h1>
+      <p class="lead">
+        このドキュメントは <code>cloud/phase-cloud-ring.html</code> の WebGPU シェーダを、
+        バーテックスシェーダ、フラグメントシェーダ、ノイズ生成、位相雲、表示回転の順に読み解くためのものです。
+      </p>
+      <section class="summary" aria-label="概要">
+        <article>
+          <h2>生成用シェーダ</h2>
+          <p>雲パターンをピクセル単位で計算し、オフスクリーンテクスチャへ描画します。</p>
+        </article>
+        <article>
+          <h2>表示用シェーダ</h2>
+          <p>生成済みテクスチャをサンプリングし、中心を保ったまま表示回転します。</p>
+        </article>
+        <article>
+          <h2>保存用シェーダ</h2>
+          <p>生成用シェーダと同じロジックを使い、現在角度を焼き込んだ正方形 PNG を出力します。</p>
+        </article>
+      </section>
+    </header>
+
+    <section>
+      <h2>1. 全体の描画パイプライン</h2>
+      <p>
+        このページは、複雑な形状メッシュを作らず、画面全体を覆う三角形を 1 枚だけ描きます。
+        各ピクセルの色はフラグメントシェーダで直接計算されます。
+      </p>
+      <div class="flow">
+        <div>
+          <b>1. 生成</b>
+          <span><code>cloudShader</code> が雲リングを生成し、<code>offscreenTexture</code> に書き込みます。</span>
+        </div>
+        <div>
+          <b>2. 表示</b>
+          <span><code>displayShader</code> が <code>offscreenTexture</code> を読み、現在の表示回転を適用します。</span>
+        </div>
+        <div>
+          <b>3. アニメーション</b>
+          <span>自動回転中は雲を再生成せず、表示用テクスチャ座標だけを回転します。</span>
+        </div>
+      </div>
+      <p>
+        そのため、重い雲生成は <code>Run</code>、<code>再生成</code>、リサイズなどのタイミングに寄せられます。
+        回転だけなら表示用シェーダのサンプリングで済みます。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Uniforms の役割</h2>
+      <p>
+        生成用シェーダには UI からの値が <code>Uniforms</code> として渡されます。
+        ここに雲の数、半径、サイズ、位相、シード、球面回転軸などが入ります。
+      </p>
+      <pre><code>struct Uniforms {
+  resolution: vec2f,
+  count: f32,
+  ringRadius: f32,
+  cloudSize: f32,
+  cloudAspect: f32,
+  cloud: f32,
+  swirl: f32,
+  paper: f32,
+  softness: f32,
+  phase: f32,
+  phaseCycles: f32,
+  rotation: f32,
+  seed: f32,
+  orientation: f32,
+  centerY: f32,
+  sphereAxis: vec4f,
+  spiralTurns: f32,
+  viewScale: f32,
+  outerFadeStart: f32,
+  outerFadeSpeed: f32,
+};</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>項目</th>
+            <th>意味</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>resolution</code></td>
+            <td>キャンバスのピクセルサイズ。座標正規化に使います。</td>
+          </tr>
+          <tr>
+            <td><code>count</code>, <code>spiralTurns</code></td>
+            <td>一周あたりの配置数と巻き数。合計雲数は概ね <code>count * spiralTurns</code> です。</td>
+          </tr>
+          <tr>
+            <td><code>ringRadius</code></td>
+            <td>渦巻き配置の外周半径です。</td>
+          </tr>
+          <tr>
+            <td><code>cloudSize</code>, <code>cloudAspect</code></td>
+            <td>各雲パーツの縦サイズと横方向倍率です。</td>
+          </tr>
+          <tr>
+            <td><code>cloud</code>, <code>paper</code></td>
+            <td>ノイズ値を白い墨模様に変換するときの濃度としきい値です。</td>
+          </tr>
+          <tr>
+            <td><code>swirl</code></td>
+            <td>ノイズ座標を歪ませる量。モヤモヤの流れと渦感に効きます。</td>
+          </tr>
+          <tr>
+            <td><code>phase</code>, <code>phaseCycles</code></td>
+            <td>球面雲を回した状態として各雲の見た目を変える位相です。</td>
+          </tr>
+          <tr>
+            <td><code>sphereAxis</code></td>
+            <td>位相変化で球面をどの軸の周りに回すかを決めます。</td>
+          </tr>
+          <tr>
+            <td><code>outerFadeStart</code>, <code>softness</code>, <code>outerFadeSpeed</code></td>
+            <td>各雲パーツの外縁フェード位置、幅、カーブです。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>3. バーテックスシェーダ</h2>
+      <p>
+        生成用と表示用のバーテックスシェーダは同じ考え方です。
+        頂点バッファを使わず、<code>vertex_index</code> だけで巨大な三角形を 1 枚作ります。
+      </p>
+      <pre><code>@vertex
+fn vs(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4f {
+  let positions = array&lt;vec2f, 3&gt;(
+    vec2f(-1.0, -3.0),
+    vec2f( 3.0,  1.0),
+    vec2f(-1.0,  1.0)
+  );
+
+  return vec4f(positions[vertexIndex], 0.0, 1.0);
+}</code></pre>
+      <p>
+        この 3 点はクリップ空間上で画面全体を覆います。
+        以降の見た目はすべてフラグメントシェーダ側で決まるため、頂点シェーダは画面を塗るための最小構成です。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. ノイズ生成</h2>
+      <h3>hash</h3>
+      <p>
+        <code>hash</code> は 2D 座標から 0 から 1 の疑似乱数を作ります。
+        格子点ごとにランダム値を持たせるための基礎関数です。
+      </p>
+      <pre><code>fn hash(p: vec2f) -> f32 {
+  let h = dot(p, vec2f(127.1, 311.7));
+  return fract(sin(h) * 43758.5453123);
+}</code></pre>
+
+      <h3>noise</h3>
+      <p>
+        <code>noise</code> は現在座標が属する格子の 4 隅で <code>hash</code> を呼び、
+        その値をなめらかに補間します。これでカクカクした乱数ではなく、連続した濃淡になります。
+      </p>
+      <pre><code>fn noise(p: vec2f) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+
+  let a = hash(i);
+  let b = hash(i + vec2f(1.0, 0.0));
+  let c = hash(i + vec2f(0.0, 1.0));
+  let d = hash(i + vec2f(1.0, 1.0));
+
+  let w = f * f * (3.0 - 2.0 * f);
+  return mix(mix(a, b, w.x), mix(c, d, w.x), w.y);
+}</code></pre>
+
+      <h3>fbm</h3>
+      <p>
+        <code>fbm</code> は複数のスケールの <code>noise</code> を足します。
+        大きなムラと細かいムラを重ねることで、雲や煙に近い階層的な模様になります。
+      </p>
+      <pre><code>fn fbm(p0: vec2f) -> f32 {
+  var p = p0;
+  var amplitude = 0.5;
+  var value = 0.0;
+
+  for (var i = 0; i &lt; 6; i = i + 1) {
+    value += amplitude * noise(p);
+    p = mat2x2f(1.62, 1.11, -1.11, 1.62) * p;
+    amplitude *= 0.52;
+  }
+
+  return value;
+}</code></pre>
+      <p>
+        座標変換行列 <code>mat2x2f(1.62, 1.11, -1.11, 1.62)</code> は、各オクターブで座標を回転しながら拡大します。
+        これにより、単純な格子方向の繰り返しが目立ちにくくなります。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 生成用フラグメントシェーダ</h2>
+      <p>
+        生成用フラグメントシェーダは、現在ピクセルの正規化座標を作り、渦巻き上に置かれた雲パーツを順番に調べます。
+        最終的には、すべての雲パーツのうち最も濃い値を採用します。
+      </p>
+      <pre><code>@fragment
+fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
+  let tau = 6.28318530718;
+  let minResolution = min(u.resolution.x, u.resolution.y);
+
+  var uv = (position.xy * 2.0 - u.resolution) / minResolution;
+  uv.y = -uv.y;
+  uv -= vec2f(0.0, u.centerY);
+  uv *= u.viewScale;
+
+  let countPerTurn = clamp(floor(u.count + 0.5), 1.0, 120.0);
+  let spiralTurns = clamp(u.spiralTurns, 1.0, 32.0);
+  let totalCount = clamp(ceil(countPerTurn * spiralTurns) + 1.0, 2.0, 4096.0);
+  var ink = 0.0;
+
+  for (var i: u32 = 0u; i &lt; 4096u; i = i + 1u) {
+    let fi = f32(i);
+    if (fi &gt;= totalCount) {
+      break;
+    }
+
+    ...
+    let cloudInk = phaseCloud(local, instancePhase);
+    ink = max(ink, cloudInk);
+  }
+
+  let paperColor = vec3f(0.0, 0.0, 0.0);
+  let inkColor = vec3f(1.0, 1.0, 1.0);
+  let color = mix(paperColor, inkColor, clamp(ink, 0.0, 0.98));
+
+  return vec4f(color, 1.0);
+}</code></pre>
+
+      <h3>座標正規化</h3>
+      <p>
+        <code>position.xy</code> はピクセル座標です。
+        これを短辺基準の座標に変換して、画面の縦横比に左右されにくい座標系を作ります。
+      </p>
+      <span class="formula"><code>uv = (position.xy * 2.0 - resolution) / min(width, height)</code></span>
+      <p>
+        その後、<code>centerY</code> で中心を上下にずらし、<code>viewScale</code> で全体表示倍率を反映します。
+      </p>
+
+      <h3>渦巻き配置</h3>
+      <p>
+        ループ内では <code>spiralT</code> を 0 から 1 へ進め、角度と半径を計算します。
+      </p>
+      <pre><code>let spiralT = fi / max(1.0, totalCount - 1.0);
+let angle = spiralT * spiralTurns * tau + u.rotation;
+let innerRadius = min(u.ringRadius, max(0.0, u.cloudSize * 0.28));
+let radius = mix(innerRadius, u.ringRadius, spiralT);
+let center = vec2f(cos(angle), sin(angle)) * radius;</code></pre>
+      <p>
+        <code>spiralT</code> が小さい雲は中心側、1 に近い雲は外周側に置かれます。
+        <code>spiralTurns</code> を増やすと、角度の進みが大きくなり、巻き数が増えます。
+      </p>
+
+      <h3>雲ごとのローカル座標</h3>
+      <p>
+        ピクセル座標から雲の中心を引き、雲の向きに合わせて回転し、サイズで割ります。
+        これで各雲パーツから見たローカル座標になります。
+      </p>
+      <pre><code>var local = uv - center;
+
+var orientAngle = angle;
+if (u.orientation &gt; 1.5) {
+  orientAngle = 0.0;
+} else if (u.orientation &gt; 0.5) {
+  let radialStep = max(0.0001, (u.ringRadius - innerRadius) / max(tau, tau * spiralTurns));
+  orientAngle = angle + atan2(radius, radialStep);
+}
+
+local = rotate(local, -orientAngle);
+local = vec2f(
+  local.x / max(0.01, u.cloudSize * u.cloudAspect),
+  local.y / max(0.01, u.cloudSize)
+);</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th><code>orientation</code></th>
+            <th>雲の向き</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>0</code></td>
+            <td>放射方向。配置角度に沿って雲を回します。</td>
+          </tr>
+          <tr>
+            <td><code>1</code></td>
+            <td>接線方向。渦巻きの進行方向に近い角度へ回します。</td>
+          </tr>
+          <tr>
+            <td><code>2</code></td>
+            <td>固定。雲の向きを回さず、全パーツ同じ向きにします。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>雲ごとの位相</h3>
+      <p>
+        各雲の見た目は <code>phase</code> と <code>phaseCycles</code> で変わります。
+        <code>phaseCycles</code> が 1 なら、中心から外周までで位相が 1 周します。
+      </p>
+      <pre><code>let instancePhase = u.phase + spiralT * tau * u.phaseCycles;
+let cloudInk = phaseCloud(local, instancePhase);
+ink = max(ink, cloudInk);</code></pre>
+    </section>
+
+    <section>
+      <h2>6. phaseCloud の詳細</h2>
+      <p>
+        <code>phaseCloud</code> は 1 個の雲パーツの中身を作る関数です。
+        ローカル座標を球面上の点として扱い、その球を位相角だけ回転させたあと、ノイズ空間へ投影します。
+      </p>
+
+      <h3>2D ローカル座標を球面に持ち上げる</h3>
+      <pre><code>let radius = length(p);
+let sphereZ = sqrt(max(0.0, 1.0 - radius * radius));
+let n = normalize(vec3f(p.x, p.y, sphereZ));</code></pre>
+      <p>
+        <code>p.x</code>, <code>p.y</code> を球面の X/Y とみなし、<code>z = sqrt(1 - r^2)</code> で半球上の点を作ります。
+        雲の外側では <code>z</code> が 0 に近づきます。
+      </p>
+
+      <h3>任意軸まわりの球面回転</h3>
+      <pre><code>let cp = cos(phase);
+let sp = sin(phase);
+let axis = sphereRotationAxis(u.sphereAxis.xyz);
+
+let sphere = n * cp + cross(axis, n) * sp + axis * dot(axis, n) * (1.0 - cp);</code></pre>
+      <p>
+        これはロドリゲスの回転公式です。
+        <code>phase</code> が変わると、球面上の雲が指定軸まわりに回転したような入力座標になります。
+      </p>
+
+      <h3>球面から 2 種類のノイズ座標を作る</h3>
+      <pre><code>let surfaceA = vec2f(
+  sphere.x + sphere.z * 0.64,
+  sphere.y + sphere.z * 0.38
+);
+let surfaceB = vec2f(
+  sphere.x * 0.72 - sphere.z * 0.46,
+  sphere.y * 1.08 + sphere.z * 0.24
+);</code></pre>
+      <p>
+        ひとつの投影だけだと単調になるため、係数の違う 2 つの座標系を使います。
+        <code>sphere.z</code> を混ぜることで、平面座標だけでは出にくい丸みのある変化が入ります。
+      </p>
+
+      <h3>swirl による歪み</h3>
+      <pre><code>let warp = fbm(surfaceA * 2.05 + seedOffset) - 0.5;
+let cloudPoint = surfaceA * (2.0 + radius * 1.9)
+  + surfaceB * 0.42
+  + vec2f(u.swirl * 0.12 * warp, -u.swirl * 0.034 * sphere.y);</code></pre>
+      <p>
+        <code>warp</code> はノイズから作った歪み量です。
+        これを <code>cloudPoint</code> に加えることで、ノイズの等高線が曲がり、煙のような流れが出ます。
+      </p>
+
+      <h3>複数スケールの雲を合成</h3>
+      <pre><code>var ink = fbm(cloudPoint * 1.95 + seedOffset);
+ink += 0.58 * fbm(cloudPoint * 4.4 - seedOffset + surfaceB * 0.18);
+ink += 0.18 * fbm(cloudPoint * 7.8 + vec2f(surfaceA.y, -surfaceA.x) * 0.20);</code></pre>
+      <p>
+        低周波の大きな雲、中周波のうねり、高周波の細部を足しています。
+        係数 <code>0.58</code> と <code>0.18</code> は、後段の細かい成分が主張しすぎないようにする重みです。
+      </p>
+
+      <h3>外縁フェードと白黒化</h3>
+      <pre><code>let fadeStart = clamp(u.outerFadeStart, 0.1, 1.2);
+let fadeLength = clamp(u.softness, 0.02, 0.8);
+let fadeSpeed = clamp(u.outerFadeSpeed, 0.25, 4.0);
+let fadeProgress = smoothstep(fadeStart, fadeStart + fadeLength, radius);
+let edgeFade = 1.0 - pow(fadeProgress, 1.0 / fadeSpeed);
+let inkMask = smoothstep(0.38 + u.paper * 0.25, 1.08, ink * u.cloud);
+
+return clamp(inkMask * edgeFade, 0.0, 0.98);</code></pre>
+      <p>
+        <code>smoothstep</code> によって、ノイズの連続値を墨の濃淡に変換します。
+        <code>paper</code> が大きいほど白が出にくくなり、<code>cloud</code> が大きいほど濃く出ます。
+        外縁では <code>edgeFade</code> によって自然に消えます。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 表示用フラグメントシェーダ</h2>
+      <p>
+        表示用シェーダは雲を生成しません。
+        生成済みの <code>cloudTexture</code> を、回転したテクスチャ座標で読みます。
+      </p>
+      <pre><code>@fragment
+fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
+  let minResolution = min(d.resolution.x, d.resolution.y);
+  var uv = (position.xy * 2.0 - d.resolution) / minResolution;
+  uv.y = -uv.y;
+
+  let center = vec2f(0.0, d.centerY);
+  let sourceUv = rotate(uv - center, -d.rotation) + center;
+  var texCoord = sourceUv * minResolution / d.resolution;
+  texCoord.y = -texCoord.y;
+  texCoord = texCoord * 0.5 + vec2f(0.5, 0.5);
+
+  let inside = step(0.0, texCoord.x)
+    * step(texCoord.x, 1.0)
+    * step(0.0, texCoord.y)
+    * step(texCoord.y, 1.0);
+  let sampled = textureSampleLevel(
+    cloudTexture,
+    cloudSampler,
+    clamp(texCoord, vec2f(0.0), vec2f(1.0)),
+    0.0
+  );
+  return vec4f(sampled.rgb * inside, 1.0);
+}</code></pre>
+      <p>
+        ここでは逆回転を使っています。
+        出力ピクセルの位置を逆向きに回して、元テクスチャのどこを読むべきかを求めるためです。
+      </p>
+      <span class="formula"><code>sourceUv = rotate(uv - center, -rotation) + center</code></span>
+      <p>
+        <code>inside</code> はサンプリング座標がテクスチャ範囲内かどうかのマスクです。
+        範囲外は黒になります。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. なぜ二段構成にしているか</h2>
+      <p>
+        生成用フラグメントシェーダは、各ピクセルで最大 4096 個の雲候補をループし、
+        それぞれで複数回の <code>fbm</code> を呼びます。
+        これはかなり重い処理です。
+      </p>
+      <p>
+        一方、表示用シェーダはテクスチャを 1 回読むだけです。
+        自動回転中に毎フレーム生成し直すと負荷が高いため、現在の実装では生成済み画像を回転表示する構造になっています。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>処理</th>
+            <th>主なコスト</th>
+            <th>実行タイミング</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>生成用シェーダ</td>
+            <td>雲配置ループ、球面位相、fbm ノイズ合成</td>
+            <td>Run、再生成、リサイズ、保存時</td>
+          </tr>
+          <tr>
+            <td>表示用シェーダ</td>
+            <td>座標回転、テクスチャサンプリング</td>
+            <td>通常表示、自動回転の各フレーム</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>9. パラメータ調整の読み方</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>触る値</th>
+            <th>シェーダ上の影響</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>count</code></td>
+            <td>ループで配置される雲数が増減します。多いほど密になります。</td>
+          </tr>
+          <tr>
+            <td><code>spiralTurns</code></td>
+            <td><code>angle = spiralT * spiralTurns * tau</code> の進みが変わり、巻き数が変わります。</td>
+          </tr>
+          <tr>
+            <td><code>cloudSize</code></td>
+            <td>ローカル座標を割る値が変わります。大きいほど雲パーツが広がります。</td>
+          </tr>
+          <tr>
+            <td><code>cloudAspect</code></td>
+            <td>X 方向の割り算だけに効き、横長または縦長の雲になります。</td>
+          </tr>
+          <tr>
+            <td><code>phaseCycles</code></td>
+            <td>中心から外周に向けて、雲の位相が何周変化するかを決めます。</td>
+          </tr>
+          <tr>
+            <td><code>sphereAxisX/Y/Z</code></td>
+            <td>位相による球面回転の軸を変えます。模様の流れる方向が変わります。</td>
+          </tr>
+          <tr>
+            <td><code>swirl</code></td>
+            <td><code>cloudPoint</code> の歪みが増え、渦や煙の流れが強くなります。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="small">
+        参照元: <code>cloud/phase-cloud-ring.html</code>
+      </p>
+    </section>
+  </main>
+</body>
+</html>

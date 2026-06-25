@@ -8,14 +8,29 @@ c_hole_h = 5;
 c_board_h = 3;
 c_board_s = 30;
 
+module side_sphere(offset=0){
+    scale([1,1,0.7])
+    sphere(d=body_h-offset);
+}
+
 module cover() {
     scale([1,1,1.3]) rotate([0,-90,0]) difference() {
-      cylinder(h=body_h, d=body_h, center=true);
+        union() {
+           cylinder(h=body_h, d=body_h, center=true); 
+           translate([0,0,body_h/2])
+            side_sphere();
+          translate([0,0,-body_h/2])
+            side_sphere();
+      }
+           translate([0,0,body_h/2])
+            side_sphere(3);
+          translate([0,0,-body_h/2])
+            side_sphere(3);
       cylinder(h=body_h+1, d=body_h-8, center=true);
       translate([-body_h/2,0,0])
-      cube([body_h, body_h, body_h+5], center=true);    
+      cube([body_h, body_h+10, body_h+200], center=true);    
         translate([30,-50,0])  
-      cube([80, 60, 70], center=true);    
+      cube([100, 60, 125], center=true);    
     }
 }
 
@@ -51,8 +66,8 @@ difference() {
 }
 
 
-    translate([0,41,40])
-    rotate([-64,0,0]) {
+    translate([0,42,40])
+    rotate([-61,0,0]) {
       difference() {
             cube([c_board_s+8,c_board_s+8, 25], center=true);
             translate([0,0,2])

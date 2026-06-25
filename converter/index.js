@@ -13,16 +13,19 @@ function printUsage() {
   console.log(
     [
       "Usage:",
-      "  node index.js [--input-dir ./input] [--output-dir ./output] [--width 2048] [--height 1024] [--no-mirror] [--padding-top 0] [--padding-bottom 0] [--shift-x 0] [--shift-top-x 0] [--shift-bottom-x 0] [--flip-bottom-horizontal] [trim options]",
-      "  node index.js <top-image> [bottom-image] [--output ./output.png] [--width 2048] [--height 1024] [--no-mirror] [--padding-top 0] [--padding-bottom 0] [--shift-x 0] [--shift-top-x 0] [--shift-bottom-x 0] [--flip-bottom-horizontal] [trim options]",
+      "  node index.js [--input-dir ./input] [--output-dir ./output] [--width 2048] [--height 1024] [--no-mirror] [--padding-top 0] [--padding-bottom 0] [--shift-x 0] [--shift-top-x 0] [--shift-bottom-x 0] [--flip-bottom-horizontal] [--flip-mirror-vertical] [trim options]",
+      "  node index.js <top-image> [bottom-image] [--output ./output.png] [--width 2048] [--height 1024] [--no-mirror] [--padding-top 0] [--padding-bottom 0] [--shift-x 0] [--shift-top-x 0] [--shift-bottom-x 0] [--flip-bottom-horizontal] [--flip-mirror-vertical] [trim options]",
       "  node index.js --input ./top.png [--bottom-input ./bottom.png] [--output ./output.png] [width/height/trim/shift/padding/flip options]",
       "",
       "Examples:",
       "  node index.js",
       "  node index.js ./top.png --output ./output/shifted-left.png --shift-x -10",
       "  node index.js ./top.png --output ./output/bottom-shifted-left.png --shift-bottom-x -10",
+      "  node index.js ./top.png --output ./output/padded-mirror.png --padding-top 64 --padding-bottom 64",
       "  node index.js ./top.png --output ./output/no-mirror.png --no-mirror --padding-top 64 --padding-bottom 64",
       "  node index.js ./top.png ./bottom.png --output ./output/two-images.png --flip-bottom-horizontal",
+      "  node index.js ./top.png ./bottom.png --output ./output/two-images-vertical-flip.png --flip-mirror-vertical",
+      "  node index.js ./top.png ./bottom.png --output ./output/two-images-trimmed.png --trim-all-top 16 --trim-all-bottom 32",
       "  npm run convert -- --input-dir ./input --output-dir ./output --width 2048 --height 1024 --trim-all 24",
       "  npm run convert -- --input-dir ./input --output-dir ./output --width 2048 --height 1024 --trim-all 24 --trim-top 32",
       "  npm run convert -- --input ./top.png --bottom-input ./bottom.png --output ./output/two-images.png --flip-bottom-horizontal"
@@ -63,6 +66,8 @@ function parseArgs(argv) {
     trimRight: 0,
     trimBottom: 0,
     trimLeft: 0,
+    trimAllTop: null,
+    trimAllBottom: null,
     inputPath: null,
     bottomInputPath: null,
     outputPath: null,
@@ -73,6 +78,7 @@ function parseArgs(argv) {
     paddingTop: 0,
     paddingBottom: 0,
     flipBottomHorizontal: false,
+    flipMirrorVertical: false,
     positionalInputs: []
   };
 
@@ -86,6 +92,11 @@ function parseArgs(argv) {
 
     if (arg === "--flip-bottom-horizontal") {
       options.flipBottomHorizontal = true;
+      continue;
+    }
+
+    if (arg === "--flip-mirror-vertical") {
+      options.flipMirrorVertical = true;
       continue;
     }
 
@@ -137,6 +148,8 @@ function parseArgs(argv) {
       arg === "--bottom-input" ||
       arg === "--output" ||
       arg === "--trim-all" ||
+      arg === "--trim-all-top" ||
+      arg === "--trim-all-bottom" ||
       arg === "--trim-top" ||
       arg === "--trim-right" ||
       arg === "--trim-bottom" ||
@@ -224,6 +237,30 @@ function parseArgs(argv) {
   }
 
   return options;
+}
+
+function resolveTrimOptions({
+  trimTop,
+  trimRight,
+  trimBottom,
+  trimLeft,
+  trimAllOverride = null
+}) {
+  if (trimAllOverride !== null) {
+    return {
+      trimTop: trimAllOverride,
+      trimRight: trimAllOverride,
+      trimBottom: trimAllOverride,
+      trimLeft: trimAllOverride
+    };
+  }
+
+  return {
+    trimTop,
+    trimRight,
+    trimBottom,
+    trimLeft
+  };
 }
 
 function clamp(value, min, max) {
@@ -346,17 +383,21 @@ function copyPolarHemisphere({
   width,
   height,
   targetHalf,
+  targetTop = 0,
+  targetHeight = height,
   flipHorizontal = false,
+  flipVertical = false,
   shiftX = 0
 }) {
   const { source, sourceWidth, sourceHeight, channels } = sourceImage;
   const centerX = sourceWidth / 2;
   const centerY = sourceHeight / 2;
   const maxRadius = Math.min(centerX, centerY);
-  const hemisphereHeight = height / 2;
+  const hemisphereHeight = targetHeight / 2;
 
   for (let y = 0; y < hemisphereHeight; y += 1) {
-    const radialProgress = hemisphereHeight === 1 ? 0 : y / (hemisphereHeight - 1);
+    const baseRadialProgress = hemisphereHeight === 1 ? 0 : y / (hemisphereHeight - 1);
+    const radialProgress = flipVertical ? 1 - baseRadialProgress : baseRadialProgress;
     const radius = radialProgress * maxRadius;
 
     for (let x = 0; x < width; x += 1) {
@@ -365,7 +406,7 @@ function copyPolarHemisphere({
       const sampleX = clamp(Math.round(centerX + radius * Math.cos(theta)), 0, sourceWidth - 1);
       const sampleY = clamp(Math.round(centerY + radius * Math.sin(theta)), 0, sourceHeight - 1);
       const targetX = wrapPixelX((flipHorizontal ? width - 1 - x : x) + shiftX, width);
-      const targetY = targetHalf === "top" ? y : height - 1 - y;
+      const targetY = targetHalf === "top" ? targetTop + y : targetTop + targetHeight - 1 - y;
 
       copyPixel(source, sourceWidth, sampleX, sampleY, output, width, targetX, targetY, channels);
     }
@@ -413,44 +454,62 @@ async function convertPolarToMirroredSphere({
   trimRight,
   trimBottom,
   trimLeft,
+  trimAllTop = null,
+  trimAllBottom = null,
   shiftX = 0,
   shiftTopX = null,
   shiftBottomX = null,
   noMirror = false,
   paddingTop = 0,
   paddingBottom = 0,
-  flipBottomHorizontal = false
+  flipBottomHorizontal = false,
+  flipMirrorVertical = false
 }) {
   if (!inputPath) {
     throw new Error("An input image path is required.");
   }
 
-  if (!noMirror && height % 2 !== 0) {
-    throw new Error("--height must be an even number so the hemisphere can be mirrored exactly.");
+  const drawableHeight = height - paddingTop - paddingBottom;
+
+  if (drawableHeight <= 0) {
+    throw new Error("--padding-top and --padding-bottom must leave at least 1px for the converted image.");
   }
 
-  if (!noMirror && (paddingTop > 0 || paddingBottom > 0)) {
-    throw new Error("--padding-top and --padding-bottom are only available with --no-mirror.");
+  if (!noMirror && drawableHeight % 2 !== 0) {
+    throw new Error("--height minus --padding-top and --padding-bottom must be even so the hemisphere can be mirrored exactly.");
   }
 
   if (noMirror && bottomInputPath) {
     throw new Error("--no-mirror uses a single input image. Remove the second image or --bottom-input.");
   }
 
+  if (noMirror && trimAllBottom !== null) {
+    throw new Error("--trim-all-bottom is only available in mirrored mode.");
+  }
+
   if (noMirror && flipBottomHorizontal) {
     throw new Error("--flip-bottom-horizontal is only available in mirrored mode.");
+  }
+
+  if (noMirror && flipMirrorVertical) {
+    throw new Error("--flip-mirror-vertical is only available in mirrored mode.");
   }
 
   if (noMirror && (shiftTopX !== null || shiftBottomX !== null)) {
     throw new Error("--shift-top-x and --shift-bottom-x are only available in mirrored mode. Use --shift-x with --no-mirror.");
   }
 
-  if (noMirror && (paddingTop + paddingBottom >= height)) {
-    throw new Error("--padding-top and --padding-bottom must leave at least 1px for the converted image.");
-  }
-
   const resolvedInput = path.resolve(inputPath);
   const resolvedBottomInput = bottomInputPath ? path.resolve(bottomInputPath) : resolvedInput;
+  const commonTrim = { trimTop, trimRight, trimBottom, trimLeft };
+  const topTrim = resolveTrimOptions({
+    ...commonTrim,
+    trimAllOverride: trimAllTop
+  });
+  const bottomTrim = resolveTrimOptions({
+    ...commonTrim,
+    trimAllOverride: trimAllBottom
+  });
   const resolvedOutput = path.resolve(
     outputPath ||
       (bottomInputPath
@@ -460,18 +519,13 @@ async function convertPolarToMirroredSphere({
 
   const topSource = await loadPolarSource({
     inputPath: resolvedInput,
-    trimTop,
-    trimRight,
-    trimBottom,
-    trimLeft
+    ...topTrim
   });
-  const bottomSource = bottomInputPath
+  const usesSeparateBottomSource = !noMirror && (bottomInputPath || trimAllBottom !== null);
+  const bottomSource = usesSeparateBottomSource
     ? await loadPolarSource({
         inputPath: resolvedBottomInput,
-        trimTop,
-        trimRight,
-        trimBottom,
-        trimLeft
+        ...bottomTrim
       })
     : topSource;
 
@@ -493,7 +547,7 @@ async function convertPolarToMirroredSphere({
       width,
       targetWidth: width,
       targetTop: paddingTop,
-      targetHeight: height - paddingTop - paddingBottom,
+      targetHeight: drawableHeight,
       shiftX
     });
   } else {
@@ -503,6 +557,9 @@ async function convertPolarToMirroredSphere({
       width,
       height,
       targetHalf: "top",
+      targetTop: paddingTop,
+      targetHeight: drawableHeight,
+      flipVertical: flipMirrorVertical,
       shiftX: resolvedTopShiftX
     });
     copyPolarHemisphere({
@@ -511,7 +568,10 @@ async function convertPolarToMirroredSphere({
       width,
       height,
       targetHalf: "bottom",
+      targetTop: paddingTop,
+      targetHeight: drawableHeight,
       flipHorizontal: flipBottomHorizontal,
+      flipVertical: flipMirrorVertical,
       shiftX: resolvedBottomShiftX
     });
   }
@@ -526,7 +586,7 @@ async function convertPolarToMirroredSphere({
 
   return {
     input: resolvedInput,
-    bottomInput: bottomInputPath ? resolvedBottomInput : null,
+    bottomInput: usesSeparateBottomSource ? resolvedBottomInput : null,
     output: resolvedOutput,
     sourceWidth: topSource.sourceWidth,
     sourceHeight: topSource.sourceHeight,
@@ -539,6 +599,9 @@ async function convertPolarToMirroredSphere({
     paddingTop,
     paddingBottom,
     flipBottomHorizontal,
+    flipMirrorVertical,
+    trimAllTop,
+    trimAllBottom,
     width,
     height
   };
@@ -553,16 +616,25 @@ async function convertInputDirectory({
   trimRight,
   trimBottom,
   trimLeft,
+  trimAllTop,
+  trimAllBottom,
   shiftX,
   shiftTopX,
   shiftBottomX,
   noMirror,
   paddingTop,
   paddingBottom,
-  flipBottomHorizontal
+  flipBottomHorizontal,
+  flipMirrorVertical
 }) {
-  if (!noMirror && height % 2 !== 0) {
-    throw new Error("--height must be an even number so the hemisphere can be mirrored exactly.");
+  const drawableHeight = height - paddingTop - paddingBottom;
+
+  if (drawableHeight <= 0) {
+    throw new Error("--padding-top and --padding-bottom must leave at least 1px for the converted image.");
+  }
+
+  if (!noMirror && drawableHeight % 2 !== 0) {
+    throw new Error("--height minus --padding-top and --padding-bottom must be even so the hemisphere can be mirrored exactly.");
   }
 
   const imagePaths = getInputImagePaths(inputDir);
@@ -580,13 +652,16 @@ async function convertInputDirectory({
       trimRight,
       trimBottom,
       trimLeft,
+      trimAllTop,
+      trimAllBottom,
       shiftX,
       shiftTopX,
       shiftBottomX,
       noMirror,
       paddingTop,
       paddingBottom,
-      flipBottomHorizontal
+      flipBottomHorizontal,
+      flipMirrorVertical
     });
 
     results.push(result);
